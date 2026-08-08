@@ -87,6 +87,9 @@ export const usersApi = baseApi.injectEndpoints({
   }),
 })
 
+/** Warms `GET /users/{id}`, for the same reason as `usePrefetchAlbum`. */
+export const usePrefetchUser = () => usersApi.usePrefetch('user')
+
 export const {
   useMeQuery,
   useMyPermissionsQuery,

@@ -93,3 +93,38 @@
     margin-bottom: 0;
   }
 }
+
+// Standing in for content that is on its way. The pulse is the only motion in
+// the application, and it is dropped entirely for anyone who asked for less.
+.skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+
+  &__row {
+    height: 1.25rem;
+    background-color: var(--bs-secondary-bg);
+    border-radius: var(--bs-border-radius-sm);
+    animation: skeleton-pulse 1.4s ease-in-out infinite;
+
+    &:first-child {
+      width: 40%;
+    }
+
+    &:last-child {
+      width: 70%;
+    }
+  }
+}
+
+@keyframes skeleton-pulse {
+  50% {
+    opacity: 0.45;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton__row {
+    animation: none;
+  }
+}

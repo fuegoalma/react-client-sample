@@ -27,6 +27,8 @@ interface ListScreenProps<T> {
   readonly caption: string
   readonly emptyMessage: string
   readonly filteredEmptyMessage?: string
+  /** Warms the detail view for a row the pointer or the focus has reached. */
+  readonly onRowFocus?: (row: T) => void
 }
 
 /**
@@ -45,6 +47,7 @@ export function ListScreen<T>({
   caption,
   emptyMessage,
   filteredEmptyMessage = 'No results match this filter.',
+  onRowFocus,
 }: ListScreenProps<T>) {
   const { data, error, isLoading, isFetching } = result
 
@@ -61,6 +64,8 @@ export function ListScreen<T>({
       <QueryBoundary
         isLoading={isLoading}
         error={error}
+        // Every list screen renders rows, so the wait keeps the page's shape.
+        pending="skeleton"
         // While a refetch is in flight the previous page is still on screen, so
         // announcing "nothing here" would contradict what the user can see.
         isEmpty={!isFetching && data?.items.length === 0}
@@ -74,6 +79,7 @@ export function ListScreen<T>({
             rowKey={rowKey}
             sort={list.sort}
             onToggleSort={list.toggleSort}
+            {...(onRowFocus !== undefined && { onRowFocus })}
             footer={<PaginationBar pagination={data.pagination} onPageChange={list.setPage} />}
           />
         )}

@@ -90,6 +90,14 @@ export const albumsApi = baseApi.injectEndpoints({
   }),
 })
 
+/**
+ * Warms `GET /albums/{id}` before anything asks for it — a list screen calls it
+ * as the pointer reaches a row, so the detail view usually has the album by the
+ * time the click lands. Bound here rather than at the call site because only
+ * this module knows the endpoint's name.
+ */
+export const usePrefetchAlbum = () => albumsApi.usePrefetch('album')
+
 export const {
   useMyAlbumsQuery,
   useAlbumsQuery,

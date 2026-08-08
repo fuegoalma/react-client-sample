@@ -64,6 +64,39 @@ export const photosApi = baseApi.injectEndpoints({
 
     deletePhoto: build.mutation<null, { id: number; albumId: number }>({
       query: ({ id }) => ({ url: `/photos/${id}`, method: 'DELETE' }),
+      /*
+       * The tile leaves the grid when the request starts, not when it lands.
+       *
+       * Every cached page of the album's photos is patched, rather than only
+       * the one on screen, so paging back does not resurrect the photo from a
+       * stale entry. `invalidatesTags` below still refetches afterwards — this
+       * only removes the wait, it does not replace the source of truth. If the
+       * request is refused, the patches are undone and the API's own wording
+       * reaches the user as a toast.
+       */
+      // The lifecycle object is taken whole rather than destructured: pulling
+      // `getState` out of it reads as an unbound method, which it is not.
+      async onQueryStarted({ id, albumId }, api) {
+        const patches = photosApi.util
+          .selectCachedArgsForQuery(api.getState(), 'albumPhotos')
+          .filter((args) => args.albumId === albumId)
+          .map((args) =>
+            api.dispatch(
+              // Returning a new payload rather than mutating the draft: the
+              // DTOs are readonly by design, and this keeps them that way.
+              photosApi.util.updateQueryData('albumPhotos', args, (draft) => ({
+                ...draft,
+                items: draft.items.filter((photo) => photo.id !== id),
+              })),
+            ),
+          )
+
+        try {
+          await api.queryFulfilled
+        } catch {
+          for (const patch of patches) patch.undo()
+        }
+      },
       invalidatesTags: (_result, _error, { id, albumId }) => [
         { type: 'Photo', id },
         { type: 'Photo', id: `${LIST_ID}-${albumId}` },

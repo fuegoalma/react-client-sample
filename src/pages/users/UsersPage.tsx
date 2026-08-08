@@ -5,12 +5,13 @@ import { ConfirmDialog, ListScreen, PageHeader, type Column } from '@/components
 import { UserFormDialog } from '@/components/users/UserFormDialog'
 import { userListSpec } from '@/forms'
 import { useListQuery, useMutationAction, usePermissions } from '@/hooks'
-import { useDeleteUserMutation, useUsersQuery } from '@/repositories'
+import { useDeleteUserMutation, useUsersQuery, usePrefetchUser } from '@/repositories'
 import type { User } from '@/types'
 
 /** All user accounts (`user.index.any`, moderator and above). */
 export function UsersPage() {
   const list = useListQuery(userListSpec)
+  const prefetchUser = usePrefetchUser()
   const { data, error, isLoading, isFetching } = useUsersQuery(list.query)
   const { users: policy } = usePermissions()
   const { run } = useMutationAction()
@@ -112,6 +113,11 @@ export function UsersPage() {
         caption="Users"
         emptyMessage="No users found."
         filteredEmptyMessage="No users match this filter."
+        // The row links straight to the account; fetching it as the pointer
+        // arrives means the detail screen usually has it before the click.
+        onRowFocus={(user) => {
+          prefetchUser(user.id)
+        }}
       />
 
       <UserFormDialog

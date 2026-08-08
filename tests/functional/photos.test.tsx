@@ -1,6 +1,6 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { http } from 'msw'
+import { delay, http } from 'msw'
 import { Route, Routes } from 'react-router-dom'
 import { describe, expect, it } from 'vitest'
 
@@ -8,10 +8,11 @@ import { AlbumDetailPage } from '@/pages/albums/AlbumDetailPage'
 import { PhotoDetailPage } from '@/pages/photos/PhotoDetailPage'
 
 import { db, grantRole } from '../mocks/db'
-import { forbidden, unprocessable } from '../mocks/envelope'
+import { forbidden, noContent, unprocessable } from '../mocks/envelope'
 import { server } from '../mocks/server'
 import { renderWithProviders } from '../utils/renderWithProviders'
 
+const API = 'http://localhost:8084'
 const OWN_ALBUM = '/albums/10'
 const OTHER_ALBUM = '/albums/11'
 
@@ -123,6 +124,49 @@ describe('Deleting a photo', () => {
     await waitFor(() => {
       expect(db.photos.some((photo) => photo.id === 100)).toBe(false)
     })
+  })
+
+  it('takes the tile off the grid before the server has answered', async () => {
+    // The point of the optimistic update: the wait is the network's, and the
+    // grid should not sit there showing something the user has just removed.
+    server.use(
+      http.delete(`${API}/photos/:id`, async () => {
+        await delay(150)
+        return noContent()
+      }),
+    )
+    const { user } = renderWithProviders(<AlbumDetailPage />, {
+      route: OWN_ALBUM,
+      path: '/albums/:albumId',
+    })
+
+    const card = (await screen.findByRole('heading', { name: 'Beach sunset' })).closest('figure')
+    await user.click(within(card!).getByRole('button', { name: 'Delete' }))
+    await user.click(
+      within(await screen.findByRole('dialog')).getByRole('button', { name: 'Delete' }),
+    )
+
+    // Still in flight — the mock has not replied yet.
+    expect(db.photos.some((photo) => photo.id === 100)).toBe(true)
+    expect(screen.queryByRole('heading', { name: 'Beach sunset' })).not.toBeInTheDocument()
+  })
+
+  it('puts the tile back when the server refuses', async () => {
+    server.use(http.delete(`${API}/photos/:id`, () => forbidden()))
+    const { user } = renderWithProviders(<AlbumDetailPage />, {
+      route: OWN_ALBUM,
+      path: '/albums/:albumId',
+    })
+
+    const card = (await screen.findByRole('heading', { name: 'Beach sunset' })).closest('figure')
+    await user.click(within(card!).getByRole('button', { name: 'Delete' }))
+    await user.click(
+      within(await screen.findByRole('dialog')).getByRole('button', { name: 'Delete' }),
+    )
+
+    expect(await screen.findByText(/not allowed to perform this action/i)).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Beach sunset' })).toBeInTheDocument()
+    expect(db.photos.some((photo) => photo.id === 100)).toBe(true)
   })
 
   it('keeps the photo when the confirmation is dismissed', async () => {

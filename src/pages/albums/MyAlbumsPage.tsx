@@ -6,7 +6,7 @@ import { AlbumFormDialog } from '@/components/albums/AlbumFormDialog'
 import { ListScreen, PageHeader, type Column } from '@/components'
 import { albumListSpec } from '@/forms'
 import { useListQuery } from '@/hooks'
-import { useMyAlbumsQuery } from '@/repositories'
+import { useMyAlbumsQuery, usePrefetchAlbum } from '@/repositories'
 import type { Album } from '@/types'
 
 /**
@@ -16,6 +16,7 @@ import type { Album } from '@/types'
  */
 export function MyAlbumsPage() {
   const list = useListQuery(albumListSpec)
+  const prefetchAlbum = usePrefetchAlbum()
   const { data, error, isLoading, isFetching } = useMyAlbumsQuery(list.query)
 
   const [editing, setEditing] = useState<Album | null>(null)
@@ -95,6 +96,9 @@ export function MyAlbumsPage() {
         caption="My albums"
         emptyMessage="You have not created an album yet."
         filteredEmptyMessage="No albums match this filter."
+        onRowFocus={(album) => {
+          prefetchAlbum(album.id)
+        }}
       />
 
       <AlbumFormDialog

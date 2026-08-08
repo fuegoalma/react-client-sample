@@ -19,6 +19,13 @@ interface DataTableProps<T> {
   readonly onToggleSort?: (attribute: string) => void
   readonly caption?: string
   readonly footer?: ReactNode
+  /**
+   * Called when the pointer first reaches a row. A screen uses it to warm the
+   * detail view's query, so the record is usually already there by the time the
+   * click lands. It is only ever a head start: the detail screen still asks for
+   * its own data and renders its own loading state.
+   */
+  readonly onRowFocus?: (row: T) => void
 }
 
 function SortHeader({
@@ -68,6 +75,7 @@ export function DataTable<T>({
   onToggleSort,
   caption,
   footer,
+  onRowFocus,
 }: DataTableProps<T>) {
   return (
     <div className="dataTable">
@@ -94,7 +102,25 @@ export function DataTable<T>({
           </thead>
           <tbody>
             {rows.map((row) => (
-              <tr key={rowKey(row)}>
+              <tr
+                key={rowKey(row)}
+                // `focus` as well as hover, so reaching the row by keyboard
+                // gets the same head start as reaching it by mouse.
+                onPointerEnter={
+                  onRowFocus === undefined
+                    ? undefined
+                    : () => {
+                        onRowFocus(row)
+                      }
+                }
+                onFocus={
+                  onRowFocus === undefined
+                    ? undefined
+                    : () => {
+                        onRowFocus(row)
+                      }
+                }
+              >
                 {columns.map((column) => (
                   <td key={column.key} className={column.className}>
                     {column.render(row)}
