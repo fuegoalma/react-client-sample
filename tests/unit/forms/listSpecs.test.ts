@@ -11,30 +11,26 @@ import {
 } from '@/forms'
 
 /**
- * These specs mirror the API's `*SearchForm` whitelists, transcribed from
- * `config/openapi.yaml`. An attribute that drifts out of sync fails silently in
- * the UI — a sortable column that 422s, or a filter the server ignores — so it
- * is asserted here rather than discovered on screen.
+ * What is asserted here is each spec's *internal* consistency — the part that
+ * would still be wrong even if the API agreed with it.
+ *
+ * Whether the filters and the sortable whitelist match the API is a different
+ * question, and it is answered in `tests/contract/listSpecs.test.ts` by reading
+ * the OpenAPI document itself. This file used to answer it too, from a
+ * transcribed copy of those lists; the copy could drift from the document and
+ * go on passing, so it has been removed rather than kept as a second opinion.
  */
 describe('list specs', () => {
-  const cases: readonly (readonly [string, ListSpec, readonly string[], readonly string[]])[] = [
-    [
-      'users',
-      userListSpec,
-      ['first_name', 'last_name', 'email'],
-      ['id', 'first_name', 'last_name', 'email', 'created_at', 'updated_at'],
-    ],
-    ['albums', albumListSpec, ['title'], ['id', 'user_id', 'title', 'created_at', 'updated_at']],
-    ['photos', photoListSpec, ['title'], ['id', 'title', 'created_at']],
-    ['roles', roleListSpec, ['name'], ['id', 'name']],
+  const cases: readonly (readonly [string, ListSpec])[] = [
+    ['users', userListSpec],
+    ['albums', albumListSpec],
+    ['photos', photoListSpec],
+    ['roles', roleListSpec],
   ]
 
-  it.each(cases)('declares %s exactly as the API does', (_name, spec, filters, sortable) => {
-    expect(spec.filters.map((filter) => filter.key)).toEqual(filters)
-    expect(spec.sortable).toEqual(sortable)
-  })
-
-  it.each(cases)('sorts %s by an attribute the API accepts', (_name, spec) => {
+  it.each(cases)('sorts %s by an attribute it declares as sortable', (_name, spec) => {
+    // A default order outside the whitelist is dropped by `useListQuery` and the
+    // screen silently falls back — so the spec would be lying about its default.
     for (const entry of spec.defaultSort ?? []) {
       expect(spec.sortable).toContain(entry.attribute)
     }
