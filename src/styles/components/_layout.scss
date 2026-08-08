@@ -1,3 +1,36 @@
+// Off-screen until focused, rather than hidden: `display: none` would take it
+// out of the tab order and leave the keyboard user it exists for with nothing.
+.skipLink {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1090;
+  padding: 0.5rem 1rem;
+  color: var(--bs-body-color);
+  background-color: var(--bs-body-bg);
+  border: 1px solid var(--bs-border-color);
+  border-radius: 0 0 var(--bs-border-radius) 0;
+  transform: translateY(-120%);
+
+  &:focus {
+    transform: translateY(0);
+  }
+}
+
+// The shell's main region is focused on every client-side navigation, which
+// would otherwise draw the browser's focus ring around the whole page.
+.appMain:focus {
+  outline: none;
+}
+
+// Bootstrap documents `.modal-open` but no longer ships a rule for it — its
+// JavaScript sets the overflow inline, and that JavaScript is deliberately
+// unused here. `Modal` puts this on <body> instead, so the page behind a
+// dialog cannot scroll under the backdrop.
+.hasOpenModal {
+  overflow: hidden;
+}
+
 .appNavbar {
   min-height: $app-navbar-height;
 

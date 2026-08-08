@@ -1,4 +1,5 @@
-import { screen } from '@testing-library/react'
+import { screen, within } from '@testing-library/react'
+import { useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
 import { Breadcrumbs, ConfirmDialog, Modal } from '@/components'
@@ -6,11 +7,46 @@ import { Breadcrumbs, ConfirmDialog, Modal } from '@/components'
 import { renderWithProviders } from '../../utils/renderWithProviders'
 
 /**
+ * How every dialog in the application is actually used: mounted only while
+ * open, opened by a button that sits *outside* it. Dismissal and focus can only
+ * be proven against that arrangement — a `Modal` rendered on its own starts
+ * with the focus already nowhere else to come back from.
+ */
+function ModalHarness() {
+  const [open, setOpen] = useState(false)
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => {
+          setOpen(true)
+        }}
+      >
+        Open
+      </button>
+
+      {open && (
+        <Modal
+          title="New album"
+          onClose={() => {
+            setOpen(false)
+          }}
+        >
+          <button type="button">First</button>
+          <button type="button">Last</button>
+        </Modal>
+      )}
+    </>
+  )
+}
+
+/**
  * Bootstrap's JavaScript is deliberately unused, so dismissal is ours to
  * implement — and therefore ours to prove.
  */
 describe('Modal', () => {
-  it('closes on Escape', async () => {
+  it('closes on Escape without having to be clicked first', async () => {
     const onClose = vi.fn()
     const { user } = renderWithProviders(
       <Modal title="New album" onClose={onClose}>
@@ -18,7 +54,6 @@ describe('Modal', () => {
       </Modal>,
     )
 
-    await user.click(screen.getByRole('dialog'))
     await user.keyboard('{Escape}')
 
     expect(onClose).toHaveBeenCalledOnce()
@@ -32,10 +67,64 @@ describe('Modal', () => {
       </Modal>,
     )
 
-    await user.click(screen.getByRole('dialog'))
     await user.keyboard('a{Enter}{Tab}')
 
     expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('is named by the heading it already renders', () => {
+    renderWithProviders(
+      <Modal title="New album" onClose={vi.fn()}>
+        <h2 className="modal-title">New album</h2>
+      </Modal>,
+    )
+
+    expect(screen.getByRole('dialog', { name: 'New album' })).toBeInTheDocument()
+  })
+
+  it('takes the focus when it opens and gives it back to whatever opened it', async () => {
+    const { user } = renderWithProviders(<ModalHarness />)
+    const trigger = screen.getByRole('button', { name: 'Open' })
+
+    await user.click(trigger)
+    expect(screen.getByRole('dialog')).toContainElement(
+      document.activeElement as HTMLElement | null,
+    )
+
+    await user.keyboard('{Escape}')
+    expect(trigger).toHaveFocus()
+  })
+
+  it('keeps Tab inside the dialog, in both directions', async () => {
+    const { user } = renderWithProviders(<ModalHarness />)
+
+    await user.click(screen.getByRole('button', { name: 'Open' }))
+    const dialog = screen.getByRole('dialog')
+    const first = within(dialog).getByRole('button', { name: 'First' })
+    const last = within(dialog).getByRole('button', { name: 'Last' })
+
+    await user.tab()
+    expect(first).toHaveFocus()
+
+    await user.tab()
+    expect(last).toHaveFocus()
+
+    // Past the last one it wraps rather than escaping to the page behind.
+    await user.tab()
+    expect(first).toHaveFocus()
+
+    await user.tab({ shift: true })
+    expect(last).toHaveFocus()
+  })
+
+  it('stops the page behind it from scrolling, and lets it again once closed', async () => {
+    const { user } = renderWithProviders(<ModalHarness />)
+
+    await user.click(screen.getByRole('button', { name: 'Open' }))
+    expect(document.body).toHaveClass('hasOpenModal')
+
+    await user.keyboard('{Escape}')
+    expect(document.body).not.toHaveClass('hasOpenModal')
   })
 })
 
@@ -58,7 +147,6 @@ describe('ConfirmDialog', () => {
       </ConfirmDialog>,
     )
 
-    await user.click(screen.getByRole('dialog'))
     await user.keyboard('x')
     expect(onCancel).not.toHaveBeenCalled()
 

@@ -1,4 +1,5 @@
-import { expect, test } from '@playwright/test'
+import AxeBuilder from '@axe-core/playwright'
+import { expect, test, type Page } from '@playwright/test'
 
 import { createAlbum, newAccount, register } from './support'
 
@@ -62,5 +63,45 @@ test.describe('Contrast and state', () => {
     await page.mouse.move(0, 0)
     await expect(toggle).toHaveAttribute('aria-expanded', 'false')
     await expect(toggle).toHaveCSS('background-color', TRANSPARENT)
+  })
+})
+
+/**
+ * axe against the real stylesheet. The functional suite runs the same rules in
+ * jsdom, but with `css: false` — so `color-contrast`, the one rule that needs
+ * rendered colours, can only be answered here.
+ */
+test.describe('Accessibility with the stylesheet loaded', () => {
+  async function scan(page: Page): Promise<void> {
+    const { violations } = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze()
+
+    expect(
+      violations.flatMap((violation) =>
+        violation.nodes.map(
+          (node) => `${violation.id}: ${node.target.join(' ')} — ${node.failureSummary ?? ''}`,
+        ),
+      ),
+    ).toEqual([])
+  }
+
+  test('a list screen and the dialog it opens are clean', async ({ page }) => {
+    const account = newAccount('axelist')
+    await register(page, account)
+    await createAlbum(page, `Axe ${Date.now().toString(36)}`)
+
+    await scan(page)
+
+    await page.getByRole('button', { name: /new album/i }).click()
+    await expect(page.getByRole('dialog')).toBeVisible()
+    await scan(page)
+  })
+
+  test('the sign-in form is clean', async ({ page }) => {
+    await page.goto('/login')
+    await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible()
+
+    await scan(page)
   })
 })

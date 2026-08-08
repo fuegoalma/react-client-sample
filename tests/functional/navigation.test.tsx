@@ -1,10 +1,10 @@
 import { screen } from '@testing-library/react'
 import type { ReactElement } from 'react'
-import { Route, Routes } from 'react-router-dom'
+import { Link, Route, Routes } from 'react-router-dom'
 import { describe, expect, it } from 'vitest'
 
 import { selectIsAuthenticated } from '@/app/authSlice'
-import { Navbar, RequireAuth, RequirePermission } from '@/components'
+import { AppLayout, Navbar, RequireAuth, RequirePermission } from '@/components'
 import { PERMISSIONS } from '@/services'
 
 import { db, grantRole } from '../mocks/db'
@@ -225,5 +225,54 @@ describe('Route guards', () => {
     )
 
     expect(await screen.findByRole('heading', { name: 'Protected screen' })).toBeInTheDocument()
+  })
+})
+
+/**
+ * The shell persists across route changes, which is exactly why the two pieces
+ * of keyboard navigation live in it rather than in a screen: a screen mounts
+ * fresh each time and has no idea it replaced another one.
+ */
+describe('The application shell', () => {
+  const shell = (
+    <Routes>
+      <Route element={<AppLayout />}>
+        <Route
+          path="/albums"
+          element={
+            <>
+              <h1>My albums</h1>
+              <Link to="/profile">Profile page</Link>
+            </>
+          }
+        />
+        <Route path="/profile" element={<h1>Profile</h1>} />
+      </Route>
+    </Routes>
+  )
+
+  it('offers a skip link ahead of the navigation, pointing at the content', async () => {
+    const { user } = renderWithProviders(shell, { route: '/albums' })
+
+    await user.tab()
+
+    const skipLink = screen.getByRole('link', { name: 'Skip to content' })
+    expect(skipLink).toHaveFocus()
+    expect(skipLink).toHaveAttribute('href', '#appMain')
+    expect(screen.getByRole('main')).toHaveAttribute('id', 'appMain')
+  })
+
+  it('moves the focus to the new page on navigation, but not on arrival', async () => {
+    const { user } = renderWithProviders(shell, { route: '/albums' })
+    const main = screen.getByRole('main')
+
+    // Landing on a page is not a change of page: stealing the focus here would
+    // fight the browser's own restoration on a reload.
+    expect(main).not.toHaveFocus()
+
+    await user.click(screen.getByRole('link', { name: 'Profile page' }))
+
+    expect(await screen.findByRole('heading', { name: 'Profile' })).toBeInTheDocument()
+    expect(main).toHaveFocus()
   })
 })

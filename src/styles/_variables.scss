@@ -2,11 +2,26 @@
 // framework — components, utilities and the generated CSS custom properties —
 // is built from these values rather than restyled afterwards.
 
-$primary: #2f6fed;
-$secondary: #5c6b7a;
-$success: #1f9d55;
-$danger: #d64545;
-$warning: #d99a06;
+// The third contrast fix, and the one with the widest reach: the original
+// #2f6fed scored 4.24 against $body-bg below — under the 4.5 AA threshold — so
+// every link and every .text-primary on an application page failed it. Darkened
+// just far enough to clear it (4.85), which also lifts white-on-primary buttons
+// from 4.55 to 5.19. Found by the axe scan in tests/e2e/styling.spec.ts.
+$primary: #2a66dd;
+$secondary: #5c6b7a; // 5.10 against $body-bg — already clears AA.
+
+// The same failure as $primary above, in the three tokens that are also used as
+// *text*: `.btn-outline-success`, `.btn-outline-danger`, `.btn-outline-warning`
+// and `.text-danger` paint the token onto $body-bg, where the original values
+// scored 3.26, 4.08 and 2.28. Darkening the token rather than overriding each
+// button keeps every derived colour — fills, alerts, badges — consistent, and
+// makes any future use of them accessible by construction.
+$success: #177a42; // was #1f9d55 — 3.26 → 5.02
+$danger: #c53030; // was #d64545 — 4.08 → 5.10
+$warning: #8a6100; // was #d99a06 — 2.28 → 5.17
+
+// $info is only ever a fill (`.text-bg-info` on the role badge), and Bootstrap
+// picks the readable text colour for a fill itself, so it is left alone.
 $info: #2f8fb3;
 $body-bg: #f6f7f9;
 $body-color: #1f2933;
@@ -30,7 +45,7 @@ $card-cap-bg: transparent;
 // near-identical grey — so on our off-white page the hover was invisible. Lift
 // the menu onto white and tint the hover with the brand colour instead.
 $dropdown-bg: #fff;
-$dropdown-link-hover-bg: rgb(47 111 237 / 8%);
+$dropdown-link-hover-bg: rgba($primary, 8%);
 $dropdown-link-hover-color: $primary;
 $table-cell-padding-y: 0.6rem;
 $table-cell-padding-x: 0.75rem;

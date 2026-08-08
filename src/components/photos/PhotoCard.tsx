@@ -22,7 +22,10 @@ export function PhotoCard({ photo, albumId, canEdit, canDelete, onDelete }: Phot
       <PhotoFrame photo={photo} lazy />
 
       <figcaption className="photoCard__body">
-        <h3 className="photoCard__title">{photo.title}</h3>
+        {/* The album's own title is the page's h1 and the grid has no heading
+            of its own, so a tile sits one level below it — an h3 here skips a
+            level, which is how a screen reader loses the structure. */}
+        <h2 className="photoCard__title">{photo.title}</h2>
 
         <div className="photoCard__actions">
           <Link
