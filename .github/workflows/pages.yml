@@ -1,0 +1,64 @@
+name: Demo
+
+# Chained to a green CI on master, like CD: nothing is published from a commit
+# whose tests did not pass.
+on:
+  workflow_run:
+    workflows: ['CI']
+    types: [completed]
+    branches: [master]
+
+# Pages allows one deployment at a time; a newer commit supersedes the one in
+# flight rather than queueing behind it.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  publish:
+    name: Publish the demo to GitHub Pages
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Set up Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      # `--mode demo` sets the project-page base path and turns on the flag that
+      # starts the mock API in the browser. No API is involved: the demo answers
+      # its own requests from the handlers the functional suite uses.
+      - name: Build the demo
+        run: npm run build:demo
+
+      # A project page has no history fallback, so a deep link would 404 on
+      # reload. Serving the shell as the 404 page is the standard workaround.
+      - name: Add the SPA fallback
+        run: cp dist/index.html dist/404.html
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+      - id: deploy
+        uses: actions/deploy-pages@v4

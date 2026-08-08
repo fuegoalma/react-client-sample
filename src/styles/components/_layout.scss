@@ -103,3 +103,25 @@
     pointer-events: auto;
   }
 }
+
+// Sticky, not fixed. It still follows the visitor down a long list, but it
+// occupies its own space instead of floating over the navbar — a fixed banner
+// covered the header and swallowed the clicks meant for it, which is the same
+// defect `.toastStack` below was already fixed for once.
+.demoBanner {
+  position: sticky;
+  top: 0;
+  z-index: 1085;
+  width: 100%;
+  padding: 0.4rem 1rem;
+  font-size: 0.85rem;
+  color: var(--bs-body-bg);
+  text-align: center;
+  background-color: var(--bs-body-color);
+
+  code {
+    color: inherit;
+    background-color: rgb(255 255 255 / 15%);
+    border-radius: var(--bs-border-radius-sm);
+  }
+}

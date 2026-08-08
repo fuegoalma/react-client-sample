@@ -1,5 +1,6 @@
 export * from './ui'
 export { AppLayout } from './layout/AppLayout'
+export { DemoBanner } from './layout/DemoBanner'
 export { AuthLayout } from './layout/AuthLayout'
 export { Navbar } from './layout/Navbar'
 export { HealthBadge } from './layout/HealthBadge'

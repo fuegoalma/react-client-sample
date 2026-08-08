@@ -15,7 +15,10 @@ const bootstrapSilencedDeprecations = [
   'if-function',
 ] as const
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
+  // The demo is published to a project page, so it is served from a
+  // subdirectory rather than the domain root; a normal build stays at '/'.
+  base: mode === 'demo' ? '/react-client-sample/' : '/',
   plugins: [react()],
   resolve: {
     alias: {
@@ -68,4 +71,4 @@ export default defineConfig({
       },
     },
   },
-})
+}))

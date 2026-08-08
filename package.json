@@ -15,6 +15,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --build --force && vite build",
+    "build:demo": "tsc --build --force && vite build --mode demo",
     "preview": "vite preview",
     "size": "size-limit",
     "typecheck": "tsc --build --force",
@@ -89,5 +90,10 @@
     "@parcel/watcher@2.6.0": true,
     "esbuild@0.28.1": true,
     "msw@2.15.0": true
+  },
+  "msw": {
+    "workerDirectory": [
+      "public"
+    ]
   }
 }
