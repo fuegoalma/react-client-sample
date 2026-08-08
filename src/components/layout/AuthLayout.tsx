@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 
 import { config } from '@/config'
+import { useDocumentTitle } from '@/hooks'
 
 interface AuthLayoutProps {
   readonly title: string
@@ -11,6 +12,8 @@ interface AuthLayoutProps {
 
 /** The centred card the public auth screens live in. */
 export function AuthLayout({ title, lead, children, footer }: AuthLayoutProps) {
+  useDocumentTitle(title)
+
   return (
     <div className="authLayout">
       <div className="authLayout__card">

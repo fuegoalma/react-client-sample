@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react'
 
+import { useDocumentTitle } from '@/hooks'
+
 import { Breadcrumbs, type Crumb } from './Breadcrumbs'
 
 interface PageHeaderProps {
@@ -14,6 +16,8 @@ interface PageHeaderProps {
 }
 
 export function PageHeader({ title, subtitle, actions, breadcrumbs }: PageHeaderProps) {
+  useDocumentTitle(title)
+
   return (
     <>
       {breadcrumbs !== undefined && <Breadcrumbs items={breadcrumbs} />}
