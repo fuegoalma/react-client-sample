@@ -17,7 +17,7 @@ export interface ListResult<T> {
   readonly isFetching: boolean
 }
 
-interface ListScreenProps<T> {
+export interface ListScreenProps<T> {
   /** Page, sort and filters, from `useListQuery`. */
   readonly list: ListQueryState
   readonly result: ListResult<T>
