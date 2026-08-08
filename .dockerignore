@@ -14,6 +14,12 @@
 !public
 !docker
 
+# The demo build starts the suite's own MSW handlers in the browser, so
+# `src/main.tsx` names them in a dynamic import that the type checker has to be
+# able to resolve. Rollup drops the whole branch from a normal build, and the
+# `prod` stage copies only `dist/` — no test code is ever shipped.
+!tests
+
 # Never ship build output or secrets, even from the paths above.
 **/node_modules
 **/dist

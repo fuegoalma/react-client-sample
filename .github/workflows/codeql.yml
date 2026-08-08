@@ -1,0 +1,35 @@
+name: CodeQL
+
+# Static security analysis, which is a different question from the type-aware
+# lint in CI: that one asks whether the code is well formed, this one asks
+# whether it can be made to misbehave.
+on:
+  push:
+    branches: [master]
+  pull_request:
+  schedule:
+    # A weekly run catches newly published queries against unchanged code.
+    - cron: '0 6 * * 1'
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  analyze:
+    name: Analyze TypeScript
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+          queries: security-and-quality
+
+      - uses: github/codeql-action/analyze@v3

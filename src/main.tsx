@@ -101,11 +101,20 @@ function render(banner: ReactNode) {
 }
 
 if (isDemo) {
-  // Rendering only once the worker is listening: a query fired before then
-  // would reach the network and fail.
-  void startDemoApi().then(() => {
-    render(<DemoBanner />)
-  })
+  /*
+   * Rendering waits for the worker so no query fires before it is listening —
+   * but it happens either way. A registration that fails (an unsupported
+   * browser, a private window, a certificate the browser will not trust) must
+   * degrade to an application that loads and cannot reach its API, not to a
+   * blank page with the reason only in the console.
+   */
+  void startDemoApi()
+    .catch((error: unknown) => {
+      reporter.reportError(error, { source: 'unhandled' })
+    })
+    .finally(() => {
+      render(<DemoBanner />)
+    })
 } else {
   render(null)
 }

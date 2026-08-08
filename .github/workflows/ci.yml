@@ -35,6 +35,18 @@ jobs:
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
 
+      # What ships is what has to be clean: anything high or critical in a
+      # runtime dependency fails the build.
+      - name: Audit runtime dependencies
+        run: npm audit --omit=dev --audit-level=high
+
+      # Build-time tooling is reported but does not block. A parser that only
+      # ever reads a file we vendored from our own API is a different risk from
+      # code served to a browser, and a transitive advisory with no upstream fix
+      # would otherwise wedge every unrelated pull request.
+      - name: Audit build tooling (advisory)
+        run: npm audit --audit-level=high || true
+
       # --- static gates first: fast feedback, nothing to boot ---
       - name: Code style (Prettier · ESLint · Stylelint)
         run: npm run cs-check

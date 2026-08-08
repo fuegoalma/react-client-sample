@@ -1,3 +1,4 @@
+import { config } from '@/config'
 import type { Permission } from '@/types'
 
 /**
@@ -147,6 +148,18 @@ const SYSTEM_ROLES: readonly MockRole[] = [
   },
 ]
 
+/**
+ * The origin the mock answers on — the client's own configured API base URL,
+ * so the two cannot disagree about where requests are going. That matters for
+ * the published demo, which points at an https origin: this file used to spell
+ * `http://localhost:8084` out three times, and a demo served over https would
+ * have been asking for an insecure one.
+ *
+ * Only the *address* is shared. The permission logic in `guards.ts` is still
+ * re-derived rather than imported, which is the part that has to stay honest.
+ */
+export const API_ORIGIN = config.apiBaseUrl
+
 export const ACCESS_TOKEN = 'access-token-1'
 export const REFRESH_TOKEN = 'refresh-token-1'
 export const CURRENT_USER_ID = 1
@@ -194,7 +207,7 @@ function seed(): MockState {
         id: 100,
         album_id: 10,
         title: 'Beach sunset',
-        url: 'http://localhost:8084/uploads/albums/10/a.webp',
+        url: `${API_ORIGIN}/uploads/albums/10/a.webp`,
         created_at: 1,
       },
     ],

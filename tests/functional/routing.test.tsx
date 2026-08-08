@@ -60,6 +60,28 @@ describe('The route table', () => {
     expect(await screen.findByRole('heading', { name: 'Roles' })).toBeInTheDocument()
   })
 
+  /*
+   * Every privileged screen is code-split, so this walks each route in turn:
+   * it proves the gate is wired to the right permission *and* that the chunk
+   * behind it resolves. A `lazy()` factory that never runs is a screen nothing
+   * has ever loaded.
+   */
+  it.each([
+    ['/all-albums', 'All albums'],
+    ['/users', 'Users'],
+    ['/users/1', 'Ada Lovelace'],
+    ['/users/1/roles', 'Roles'],
+    ['/roles', 'Roles'],
+    ['/roles/new', 'Compose a role'],
+    ['/roles/1', 'Role: moderator'],
+    ['/permissions', 'Permissions'],
+  ])('loads the split screen behind %s', async (route, heading) => {
+    grantRole('super_admin')
+    renderWithProviders(<AppRoutes />, { route })
+
+    expect(await screen.findByRole('heading', { name: heading })).toBeInTheDocument()
+  })
+
   it('sends an unauthenticated visitor to the sign-in screen', async () => {
     renderWithProviders(<AppRoutes />, { route: '/albums', authenticated: false })
 

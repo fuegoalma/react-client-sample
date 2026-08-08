@@ -9,7 +9,7 @@ PROD_API_URL    ?= http://localhost:8084
 
 .PHONY: help init setup up down restart rebuild logs sh install \
         build preview size prod-build prod-run \
-        test test-unit test-functional test-contract test-one test-e2e e2e-install \
+        test test-coverage test-unit test-functional test-contract test-one test-e2e e2e-install \
         sync-spec \
         cs-check cs-fix typecheck check clean
 
@@ -27,7 +27,8 @@ help:
 	@echo "  size                 Check the built bundle against its size budget"
 	@echo "  prod-build           Build the deployable Apache image (Dockerfile prod stage)"
 	@echo "  prod-run             Run that image on PROD_PORT (stop the dev stack first)"
-	@echo "  test                 Run the full Vitest suite (unit + functional)"
+	@echo "  test                 Run the full Vitest suite"
+	@echo "  test-coverage        Run it with the 100% coverage thresholds enforced"
 	@echo "  test-unit            Run unit tests only"
 	@echo "  test-functional      Run functional tests only"
 	@echo "  test-contract        Run the OpenAPI contract tests only"
@@ -39,7 +40,7 @@ help:
 	@echo "  cs-check             Show code style violations (Prettier + ESLint + Stylelint)"
 	@echo "  cs-fix               Auto-fix code style across the whole codebase"
 	@echo "  typecheck            Run the TypeScript compiler in check-only mode"
-	@echo "  check                cs-check + typecheck + build + size + test (exactly what CI runs)"
+	@echo "  check                cs-check + typecheck + build + size + tests with coverage (what CI runs)"
 	@echo "  clean                Remove build output and caches"
 
 init:
@@ -110,6 +111,12 @@ test-contract:
 test:
 	$(APP) npm run test
 
+# What CI runs. The plain `test` target does not enforce the coverage
+# thresholds, so a gap only surfaced after a push — `check` must not have that
+# blind spot.
+test-coverage:
+	$(APP) npm run test -- --coverage
+
 test-unit:
 	$(APP) npm run test:unit
 
@@ -142,7 +149,7 @@ typecheck:
 # `build` earns its place next to `typecheck`: tsc in check-only mode never asks
 # Vite to resolve an import, an alias or an asset, so a bundle can break while
 # the types are perfectly fine.
-check: cs-check typecheck build size test
+check: cs-check typecheck build size test-coverage
 
 clean:
 	rm -rf dist coverage playwright-report test-results node_modules/.tmp node_modules/.vite

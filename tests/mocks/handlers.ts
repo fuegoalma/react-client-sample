@@ -3,6 +3,7 @@ import { http, HttpResponse } from 'msw'
 import type { Album, AlbumView, Me, MePermissions, Photo, Role, User } from '@/types'
 
 import {
+  API_ORIGIN,
   CURRENT_USER_ID,
   db,
   nextId,
@@ -26,7 +27,7 @@ import {
   unprocessable,
 } from './envelope'
 
-const BASE = 'http://localhost:8084'
+const BASE = API_ORIGIN
 
 /* -- helpers --------------------------------------------------------------- */
 
@@ -472,7 +473,7 @@ export const handlers = [
         id: nextId(),
         album_id: album.id,
         title,
-        url: `http://localhost:8084/uploads/albums/${album.id}/${slugify(title)}.webp`,
+        url: `${BASE}/uploads/albums/${album.id}/${slugify(title)}.webp`,
         created_at: Date.now(),
       }
       db.photos.push(photo)
@@ -636,6 +637,24 @@ export const handlers = [
       return ok(db.permissions)
     }),
   ),
+
+  /*
+   * The API serves the files it stored, so the mock does too — otherwise every
+   * photo in the demo renders as a broken image. jsdom never fetches an <img>,
+   * so this exists for the browser build alone.
+   */
+  http.get(`${BASE}/uploads/*`, ({ request }) => {
+    const path = new URL(request.url).pathname
+    let seed = 0
+    for (let index = 0; index < path.length; index += 1) seed += path.charCodeAt(index)
+
+    const svg =
+      `<svg xmlns="http://www.w3.org/2000/svg" width="500" height="500">` +
+      `<rect width="500" height="500" fill="hsl(${String(seed % 360)} 45% 62%)"/>` +
+      `</svg>`
+
+    return HttpResponse.text(svg, { headers: { 'Content-Type': 'image/svg+xml' } })
+  }),
 
   /* Anything unmapped is a bug in a test, not a silent pass. */
   http.all(`${BASE}/*`, ({ request }) => fail(500, `Unhandled request: ${request.url}`)),
