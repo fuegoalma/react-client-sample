@@ -111,6 +111,7 @@ server with HMR over a bind mount, so edits under `src/` appear immediately.
 | Command           | What it does                                                                  |
 | ----------------- | ----------------------------------------------------------------------------- |
 | `make build`      | Type-check and build the production bundle into `dist/`                       |
+| `make build-demo` | Build the MSW-backed demo bundle published to GitHub Pages                    |
 | `make preview`    | Build, then serve `dist/` on `PREVIEW_PORT` (8093) beside the dev server      |
 | `make prod-build` | Build the deployable Apache image from the Dockerfile's `prod` stage _(host)_ |
 | `make prod-run`   | Run that image on `PROD_PORT` (8092 by default) _(host)_                      |
@@ -163,11 +164,13 @@ entrypoint writes `env.js` into the document root, the client reads
 image runs against any environment:
 
 ```bash
-make prod-build     # docker build --target prod -t photos-react-client .
-docker run --rm -p 8092:80 -e VITE_API_BASE_URL=https://api.example.com photos-react-client
+make prod-build                                    # the deployable image
+make prod-run PROD_API_URL=https://api.example.com # pointed at any host
 ```
 
-`make prod-run` is that `docker run` with the defaults filled in.
+`prod-run` is `docker run --rm -p 8092:80 -e VITE_API_BASE_URL=… photos-react-client`
+with the defaults filled in — the API URL is an environment variable of the
+_container_, never a build argument.
 
 ---
 
@@ -380,7 +383,7 @@ It is published beside the demo, under `/storybook`.
 
 ## The published demo
 
-`npm run build:demo` produces a build that starts
+`make build-demo` produces a build that starts
 [the suite's own MSW handlers](../tests/mocks/handlers.ts) in a service worker
 and answers every request in the browser. It is deployed to GitHub Pages by
 [`pages.yml`](../.github/workflows/pages.yml), chained to a green CI exactly as

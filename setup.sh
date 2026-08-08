@@ -1,7 +1,7 @@
 #!/bin/bash
 
 if [ ! -f .env ]; then
-    echo "❌ .env not found. Run ./init.sh first."
+    echo "❌ .env not found. Run 'make init' first."
     exit 1
 fi
 

@@ -61,7 +61,7 @@ flowchart LR
   end
 
   C["contracts/<br/>TokenStorage · PermissionChecker<br/>ErrorReporter · ThemePreference"]
-  API[("Yii2 REST API")]
+  API[("Yii2/Laravel REST API")]
 
   P --> POL
   P --> F
@@ -103,7 +103,7 @@ Everything runs in Docker; the API it talks to is a separate project and must be
 running on `http://localhost:8084`.
 
 ```bash
-./init.sh && ./setup.sh   # .env, build, start, wait for the API
+make init && make setup   # .env, build, start, wait for the API
 make check                # cs-check · typecheck · build · size · tests
 ```
 

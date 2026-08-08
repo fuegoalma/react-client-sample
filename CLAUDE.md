@@ -49,8 +49,8 @@ All tooling runs inside the `client` container; use the `Makefile` shortcuts (`m
 
 ```bash
 # First-time setup
-./init.sh          # creates .env from .env.example
-./setup.sh         # builds + starts the container, waits for the dev server, checks the API's /health
+make init          # creates .env from .env.example
+make setup         # builds + starts the container, waits for the dev server, checks the API's /health
 
 # Docker lifecycle
 make up / down / restart
@@ -61,11 +61,14 @@ make install       # npm install inside the container
 
 # Build
 make build         # tsc --build + vite build (the production bundle)
+make build-demo    # the MSW-backed demo bundle published to GitHub Pages
 make preview       # serve the built bundle
 
-# Tests (Vitest: two projects, unit and functional)
-make test                                   # both
+# Tests (Vitest: three projects — unit, contract and functional)
+make test                                   # all three
+make test-coverage                          # the same, with the 100% thresholds enforced
 make test-unit
+make test-contract                          # the client against the API's OpenAPI document
 make test-functional
 make test-one file=tests/unit/services/albumPolicy.test.ts
 
@@ -75,8 +78,15 @@ make cs-fix        # reformat the whole codebase in one command
 
 # Static analysis (TypeScript in check-only mode)
 make typecheck
-make check         # cs-check + typecheck + test — exactly what CI runs
+make size          # the built bundle against its budget
+make check         # cs-check + typecheck + build + size + test-coverage — what CI runs
 make clean         # remove build output and caches
+
+# The UI kit, the API contract and the README's screenshots
+make storybook       # the component workshop on :6006 (host)
+make build-storybook
+make sync-spec       # refetch openapi.yaml from a running API, regenerate its types
+make screenshots     # regenerate the README screenshots from the running stack (host)
 ```
 
 **Playwright runs on the host, not in the container**, because it drives a real browser:
@@ -260,7 +270,7 @@ Class names are camelCase blocks with BEM-ish modifiers (`.photoCard__title`, `.
 `src/config/index.ts` resolves `window.__APP_CONFIG__` (written by the production entrypoint into `env.js`) first, then `import.meta.env`, then a default. `public/env.js` is an empty stub in development. This is what lets one built image be pointed anywhere:
 
 ```bash
-docker run -p 8092:80 -e VITE_API_BASE_URL=https://api.example.com photos-react-client
+make prod-run PROD_API_URL=https://api.example.com
 ```
 
 Never read `import.meta.env` directly outside `src/config/` — a value baked at build time cannot be changed at deploy time.

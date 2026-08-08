@@ -8,7 +8,8 @@ PROD_PORT       ?= 8092
 PROD_API_URL    ?= http://localhost:8084
 
 .PHONY: help init setup up down restart rebuild logs sh install \
-        build preview size storybook build-storybook screenshots prod-build prod-run \
+        build build-demo preview size storybook build-storybook screenshots \
+        prod-build prod-run \
         test test-coverage test-unit test-functional test-contract test-one test-e2e e2e-install \
         sync-spec \
         cs-check cs-fix typecheck check clean
@@ -23,6 +24,7 @@ help:
 	@echo "  sh                   Shell into the client container"
 	@echo "  install              Install npm dependencies inside the container"
 	@echo "  build                Build the production bundle"
+	@echo "  build-demo           Build the MSW-backed demo bundle"
 	@echo "  preview              Serve the built bundle on PREVIEW_PORT (default 8093)"
 	@echo "  size                 Check the built bundle against its size budget"
 	@echo "  storybook            Run the UI kit on http://localhost:6006 (host)"
@@ -76,6 +78,11 @@ install:
 
 build:
 	$(APP) npm run build
+
+# The published demo: the same client, but answering its own requests from the
+# suite's MSW handlers, and served from a project-page subdirectory.
+build-demo:
+	$(APP) npm run build:demo
 
 # The bundle budget, measured on the built assets — so it needs `build` first.
 size: build
