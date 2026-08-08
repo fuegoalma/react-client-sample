@@ -1,0 +1,5 @@
+# The two gates that only make sense whole-project: types cross file boundaries,
+# and a test in one suite can be broken by an edit in another. Too slow for every
+# commit, cheap enough per push — and it means CI never sees a red build first.
+npm run typecheck
+npm run test

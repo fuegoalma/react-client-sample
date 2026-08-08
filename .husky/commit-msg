@@ -1,0 +1,3 @@
+# Conventional Commits. The history is the first thing a reviewer reads, and a
+# convention only holds if something enforces it.
+npx --no -- commitlint --edit "$1"

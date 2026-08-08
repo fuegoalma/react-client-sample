@@ -35,7 +35,7 @@ help:
 	@echo "  cs-check             Show code style violations (Prettier + ESLint + Stylelint)"
 	@echo "  cs-fix               Auto-fix code style across the whole codebase"
 	@echo "  typecheck            Run the TypeScript compiler in check-only mode"
-	@echo "  check                cs-check + typecheck + test (exactly what CI runs)"
+	@echo "  check                cs-check + typecheck + build + test (exactly what CI runs)"
 	@echo "  clean                Remove build output and caches"
 
 init:
@@ -116,7 +116,10 @@ cs-fix:
 typecheck:
 	$(APP) npm run typecheck
 
-check: cs-check typecheck test
+# `build` earns its place next to `typecheck`: tsc in check-only mode never asks
+# Vite to resolve an import, an alias or an asset, so a bundle can break while
+# the types are perfectly fine.
+check: cs-check typecheck build test
 
 clean:
 	rm -rf dist coverage playwright-report test-results node_modules/.tmp node_modules/.vite

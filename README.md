@@ -1,6 +1,6 @@
 # Photos REST API — React client
 
-[![CI](https://github.com/fuegoalma/photos-react-client/actions/workflows/ci.yml/badge.svg)](https://github.com/fuegoalma/photos-react-client/actions/workflows/ci.yml) [![CD](https://github.com/fuegoalma/photos-react-client/actions/workflows/cd.yml/badge.svg)](https://github.com/fuegoalma/photos-react-client/actions/workflows/cd.yml)
+[![CI](https://github.com/fuegoalma/react-client-sample/actions/workflows/ci.yml/badge.svg)](https://github.com/fuegoalma/react-client-sample/actions/workflows/ci.yml) [![CD](https://github.com/fuegoalma/react-client-sample/actions/workflows/cd.yml/badge.svg)](https://github.com/fuegoalma/react-client-sample/actions/workflows/cd.yml)
 
 A React 19 + TypeScript client for the Photos REST API (users, albums and photos,
 JWT with a two-token model, flat RBAC). It uses **every** endpoint the API exposes,
@@ -479,9 +479,6 @@ stylesheet with the rest of the design.
   route, and the entrypoint injected the API URL. The release then runs through a
   `production` GitHub Environment, but is **simulated** — this sample provisions
   no server.
-
-> The badges above point at `fuegoalma/photos-react-client`; update that path
-> once the repository has a home.
 
 ---
 

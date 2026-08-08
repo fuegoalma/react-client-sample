@@ -1,0 +1,30 @@
+version: 2
+
+updates:
+  # Application dependencies. Grouped so a week's patches arrive as one pull
+  # request instead of a dozen — each still has to pass the same CI gates.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      types:
+        patterns: ['@types/*']
+      tooling:
+        patterns: ['eslint*', '@eslint/*', 'typescript-eslint', 'prettier*', 'stylelint*']
+      testing:
+        patterns: ['vitest', '@vitest/*', '@testing-library/*', 'msw', 'jsdom', '@playwright/test']
+
+  # The workflows pin actions by major version, so this is what keeps them from
+  # silently ageing onto a deprecated runner.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+
+  # The base images in the multi-stage Dockerfile (node:24-alpine, httpd:2.4-alpine).
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly

@@ -1,0 +1,7 @@
+# Code style on the staged files only — the same three tools as `make cs-check`,
+# just scoped, so committing stays fast. The full gate still runs in CI.
+#
+# Hooks are host processes, so they use the host's toolchain rather than
+# `docker compose exec` — the same reason Playwright runs on the host. Node 24
+# is already a requirement there (`make e2e-install`).
+npx lint-staged
