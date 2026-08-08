@@ -1,0 +1,62 @@
+// Dark-mode corrections.
+
+// Bootstrap 5.3 derives most of the dark palette itself — `$link-color-dark`,
+// for instance, is `tint-color($primary, 40%)`, so the brand blue darkened for
+// the light background is lightened back for this one. What it does *not*
+// derive are the values we overrode outright in `_variables.scss`: those become
+// plain custom properties on `:root` and would follow the page into dark mode
+// unchanged.
+
+// Both of the fixes restated here were made for contrast in the first place, so
+// leaving them would undo the very thing they exist for.
+
+[data-bs-theme='dark'] {
+  // `$dropdown-bg` was pinned to white so the menu would separate from the
+  // off-white page. On a near-black page that same white is a floodlight, and
+  // `$dropdown-link-hover-color: $primary` — a deliberately dark blue — would
+  // be unreadable on it.
+  .dropdown-menu {
+    --bs-dropdown-bg: var(--bs-tertiary-bg);
+    --bs-dropdown-link-color: var(--bs-body-color);
+    --bs-dropdown-link-hover-color: var(--bs-body-color);
+    --bs-dropdown-link-hover-bg: rgb(255 255 255 / 10%);
+  }
+
+  // An outline button paints the raw theme colour as *text*, and every one of
+  // those colours was darkened in `_variables.scss` to clear 4.5 against the
+  // light page. On the dark one they score 2.78–2.97 — worse than the values
+  // they replaced. Bootstrap already computes a lightened variant per colour
+  // for exactly this (`tint-color(…, 40%)`, exposed as `-text-emphasis`), which
+  // brings them back to 5.6–7.4; it simply does not apply it to buttons.
+
+  // Driven by `$theme-colors` rather than written out six times, so a new theme
+  // colour is covered the day it is added.
+  // The same applies to the `.text-*` utilities, which resolve `--bs-*-rgb` —
+  // a variable Bootstrap keeps at its raw value in both themes because fills
+  // depend on it. Only the text side is corrected here, so `.text-secondary`
+  // (the most-used class in the application) and `.text-danger` stay readable
+  // while `.bg-*` and the filled buttons keep their solid colours.
+
+  // `!important` matches the utility it overrides; without it Bootstrap's own
+  // declaration wins regardless of specificity.
+  @each $name, $_colour in $theme-colors {
+    .btn-outline-#{$name} {
+      --bs-btn-color: var(--bs-#{$name}-text-emphasis);
+      --bs-btn-border-color: var(--bs-#{$name}-text-emphasis);
+    }
+
+    .text-#{$name} {
+      color: var(--bs-#{$name}-text-emphasis) !important;
+    }
+  }
+
+  // `$card-border-color` is 8% black, which is simply not there against a dark
+  // surface — the panels lost their edges entirely.
+  .card,
+  .appCard,
+  .dataTable {
+    --bs-card-border-color: rgb(255 255 255 / 12%);
+
+    border-color: rgb(255 255 255 / 12%);
+  }
+}

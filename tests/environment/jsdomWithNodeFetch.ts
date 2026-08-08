@@ -58,6 +58,22 @@ const environment: Environment = {
     scope.URL.createObjectURL = () => `blob:mock/${Math.random().toString(36).slice(2)}`
     scope.URL.revokeObjectURL = () => undefined
 
+    // jsdom has no `matchMedia` either, and the theme asks it what the
+    // operating system prefers. The default answer is "light", which keeps the
+    // rest of the suite rendering the theme it was written against; the theme's
+    // own tests stub this global to drive both answers.
+    scope.matchMedia = (query: string) =>
+      ({
+        media: query,
+        matches: false,
+        onchange: null,
+        addEventListener: () => undefined,
+        removeEventListener: () => undefined,
+        addListener: () => undefined,
+        removeListener: () => undefined,
+        dispatchEvent: () => false,
+      }) as MediaQueryList
+
     return { teardown }
   },
 }

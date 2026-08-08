@@ -72,6 +72,17 @@ test.describe('Contrast and state', () => {
  * rendered colours, can only be answered here.
  */
 test.describe('Accessibility with the stylesheet loaded', () => {
+  /**
+   * Buttons transition their colours over 150ms and axe samples the DOM once,
+   * so a scan started the instant the theme changes measures values that are
+   * still on their way somewhere else — reporting failures for colours nothing
+   * ever settles on. The same transition is why the tests above use
+   * `toHaveCSS`, which retries.
+   */
+  async function settle(page: Page): Promise<void> {
+    await page.waitForTimeout(400)
+  }
+
   async function scan(page: Page): Promise<void> {
     const { violations } = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
@@ -95,6 +106,29 @@ test.describe('Accessibility with the stylesheet loaded', () => {
 
     await page.getByRole('button', { name: /new album/i }).click()
     await expect(page.getByRole('dialog')).toBeVisible()
+    await scan(page)
+  })
+
+  test('both themes are clean, including the two contrast fixes', async ({ page }) => {
+    const account = newAccount('axedark')
+    await register(page, account)
+    await createAlbum(page, `Dark ${Date.now().toString(36)}`)
+
+    // The light theme is the one the overrides in _variables.scss were tuned
+    // for; the dark one is where they would quietly stop applying.
+    await scan(page)
+
+    await page.getByRole('button', { name: new RegExp(account.firstName) }).click()
+    await page.getByRole('button', { name: 'Switch to dark theme' }).click()
+    await expect(page.locator('html')).toHaveAttribute('data-bs-theme', 'dark')
+    await settle(page)
+
+    await scan(page)
+
+    // The menu stays open after the switch — deliberately, so the change is
+    // visible and reversible in one place — and it is the control the
+    // light-theme fix pinned to white, so it is scanned while it is up.
+    await expect(page.getByRole('link', { name: 'Profile' })).toBeVisible()
     await scan(page)
   })
 

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, NavLink } from 'react-router-dom'
 
 import { config } from '@/config'
-import { useAuth, usePermissions } from '@/hooks'
+import { useAuth, usePermissions, useTheme } from '@/hooks'
 import { useMeQuery } from '@/repositories'
 import { PERMISSIONS } from '@/services'
 
@@ -28,6 +28,7 @@ const NAV_ITEMS: readonly NavItem[] = [
 export function Navbar() {
   const { permissions } = usePermissions()
   const { signOut } = useAuth()
+  const { theme, toggle: toggleTheme } = useTheme()
   const { data: me } = useMeQuery()
   const [open, setOpen] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
@@ -146,6 +147,22 @@ export function Navbar() {
                 >
                   API status
                 </Link>
+              </li>
+              <li>
+                <button
+                  type="button"
+                  className="dropdown-item"
+                  onClick={toggleTheme}
+                  // The control says what it will do, not what is on now — a
+                  // switch labelled with its own state reads as an assertion.
+                  aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+                >
+                  <i
+                    className={`bi ${theme === 'dark' ? 'bi-sun' : 'bi-moon-stars'} me-1`}
+                    aria-hidden="true"
+                  />
+                  {theme === 'dark' ? 'Light theme' : 'Dark theme'}
+                </button>
               </li>
               <li>
                 <hr className="dropdown-divider" />

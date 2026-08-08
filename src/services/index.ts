@@ -12,3 +12,12 @@ export { RolePolicy } from './rolePolicy'
 export { ListQueryBuilder } from './listQuery'
 export { LocalStorageTokenStorage, InMemoryTokenStorage, createTokenStorage } from './tokenStorage'
 export { ConsoleErrorReporter, NoopErrorReporter } from './errorReporter'
+export {
+  LocalStorageThemePreference,
+  InMemoryThemePreference,
+  createThemePreference,
+  resolveTheme,
+  applyTheme,
+  applyStoredTheme,
+  THEME_ATTRIBUTE,
+} from './theme'

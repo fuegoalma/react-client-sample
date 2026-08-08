@@ -9,7 +9,7 @@ import { App } from '@/app/App'
 import { store } from '@/app/store'
 import { DemoBanner } from '@/components'
 import { config } from '@/config'
-import { ConsoleErrorReporter } from '@/services'
+import { applyStoredTheme, ConsoleErrorReporter } from '@/services'
 
 import './styles/main.scss'
 
@@ -42,6 +42,9 @@ async function startDemoApi(): Promise<void> {
     quiet: true,
   })
 }
+
+// Before anything renders, so no one sees a flash of the theme they did not ask for.
+applyStoredTheme()
 
 // Refetch when the tab regains focus or the network comes back.
 setupListeners(store.dispatch)
