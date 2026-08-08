@@ -1,0 +1,78 @@
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+#root {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+}
+
+:focus-visible {
+  @include app-focus-ring;
+}
+
+.appShell {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+}
+
+.appMain {
+  flex: 1 1 auto;
+  width: 100%;
+  max-width: $app-content-max-width;
+  padding: 1.75rem 1rem 3rem;
+  margin: 0 auto;
+}
+
+.appBreadcrumb {
+  margin-bottom: 0.5rem;
+  font-size: 0.8125rem;
+
+  a {
+    color: var(--bs-secondary-color);
+    text-decoration: none;
+
+    &:hover {
+      color: var(--bs-primary);
+      text-decoration: underline;
+    }
+  }
+}
+
+// A page heading with its actions on the right, used by every screen.
+.pageHeader {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.25rem;
+
+  &__title {
+    margin: 0;
+    font-size: 1.5rem;
+  }
+
+  &__subtitle {
+    margin: 0.15rem 0 0;
+    font-size: 0.875rem;
+    color: var(--bs-secondary-color);
+  }
+}
+
+.emptyState {
+  @include app-card-surface(2.5rem);
+
+  color: var(--bs-secondary-color);
+  text-align: center;
+}

@@ -1,0 +1,27 @@
+services:
+  client:
+    build:
+      context: .
+      target: dev
+    image: photos-client:dev
+    env_file:
+      - .env
+    ports:
+      # 8084/8085 belong to the API stack, so the client takes 8092.
+      - '${CLIENT_PORT:-8092}:5173'
+      # `make preview` serves the built bundle alongside the dev server.
+      - '${PREVIEW_PORT:-8093}:4173'
+    volumes:
+      - ./:/app
+      # Keep the image's node_modules — the host directory must not shadow it
+      # (native binaries such as sass-embedded/esbuild are platform-specific).
+      - node_modules:/app/node_modules
+    working_dir: /app
+    networks:
+      - client-network
+
+networks:
+  client-network:
+
+volumes:
+  node_modules:

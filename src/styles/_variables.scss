@@ -1,0 +1,42 @@
+// Bootstrap variable overrides. Loaded before Bootstrap itself so the whole
+// framework — components, utilities and the generated CSS custom properties —
+// is built from these values rather than restyled afterwards.
+
+$primary: #2f6fed;
+$secondary: #5c6b7a;
+$success: #1f9d55;
+$danger: #d64545;
+$warning: #d99a06;
+$info: #2f8fb3;
+$body-bg: #f6f7f9;
+$body-color: #1f2933;
+$border-radius: 0.5rem;
+$border-radius-sm: 0.375rem;
+$border-radius-lg: 0.75rem;
+$font-family-sans-serif:
+  system-ui,
+  -apple-system,
+  'Segoe UI',
+  roboto,
+  'Helvetica Neue',
+  arial,
+  sans-serif;
+$font-size-base: 0.95rem;
+$headings-font-weight: 600;
+$card-border-color: rgb(0 0 0 / 8%);
+$card-cap-bg: transparent;
+
+// A dropdown defaults to the page's own background, and its hover tint to a
+// near-identical grey — so on our off-white page the hover was invisible. Lift
+// the menu onto white and tint the hover with the brand colour instead.
+$dropdown-bg: #fff;
+$dropdown-link-hover-bg: rgb(47 111 237 / 8%);
+$dropdown-link-hover-color: $primary;
+$table-cell-padding-y: 0.6rem;
+$table-cell-padding-x: 0.75rem;
+$enable-negative-margins: true;
+
+// Project tokens — anything that is ours rather than Bootstrap's.
+$app-navbar-height: 3.5rem;
+$app-photo-tile-size: 12rem;
+$app-content-max-width: 1200px;

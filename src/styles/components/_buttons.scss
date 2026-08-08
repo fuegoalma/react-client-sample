@@ -1,0 +1,8 @@
+// Bootstrap picks a button's hover text colour with `color-contrast()`, which
+// falls back to black when white would not clear its 4.5 contrast threshold.
+// Our red scores 4.38 against white — just under — so the framework chooses
+// black, which is far harder to read on a red fill than the white it rejected.
+.btn-outline-danger {
+  --bs-btn-hover-color: #{$white};
+  --bs-btn-active-color: #{$white};
+}

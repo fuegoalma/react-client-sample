@@ -1,0 +1,101 @@
+import { ListQueryBuilder } from '@/services/listQuery'
+import type {
+  Album,
+  AlbumCreateRequest,
+  AlbumUpdateRequest,
+  AlbumView,
+  ListQuery,
+  PaginatedPayload,
+} from '@/types'
+
+import { baseApi, LIST_ID } from './baseApi'
+
+/**
+ * `DELETE /albums/{id}` is one route with two outcomes decided server-side by
+ * the caller's permissions; the optional reason is only read for a soft delete.
+ */
+export interface DeleteAlbumArgs {
+  readonly id: number
+  readonly reason?: string
+}
+
+export const albumsApi = baseApi.injectEndpoints({
+  endpoints: (build) => ({
+    /** The caller's own albums. Available to every authenticated user. */
+    myAlbums: build.query<PaginatedPayload<Album>, ListQuery>({
+      query: (params) => ({
+        url: '/albums/my',
+        method: 'GET',
+        params: ListQueryBuilder.toParams(params),
+      }),
+      providesTags: (result) => [
+        { type: 'Album' as const, id: LIST_ID },
+        ...(result?.items ?? []).map((album) => ({ type: 'Album' as const, id: album.id })),
+      ],
+    }),
+
+    /** Every album in the system. Requires `album.index.any`. */
+    albums: build.query<PaginatedPayload<Album>, ListQuery>({
+      query: (params) => ({
+        url: '/albums',
+        method: 'GET',
+        params: ListQueryBuilder.toParams(params),
+      }),
+      providesTags: (result) => [
+        { type: 'Album' as const, id: LIST_ID },
+        ...(result?.items ?? []).map((album) => ({ type: 'Album' as const, id: album.id })),
+      ],
+    }),
+
+    album: build.query<AlbumView, number>({
+      query: (id) => ({ url: `/albums/${id}`, method: 'GET' }),
+      providesTags: (_result, _error, id) => [{ type: 'Album', id }],
+    }),
+
+    createAlbum: build.mutation<Album, AlbumCreateRequest>({
+      query: (body) => ({ url: '/albums', method: 'POST', body }),
+      invalidatesTags: [{ type: 'Album', id: LIST_ID }, 'Me'],
+    }),
+
+    updateAlbum: build.mutation<Album, { id: number; body: AlbumUpdateRequest }>({
+      query: ({ id, body }) => ({ url: `/albums/${id}`, method: 'PUT', body }),
+      invalidatesTags: (_result, _error, { id }) => [
+        { type: 'Album', id },
+        { type: 'Album', id: LIST_ID },
+      ],
+    }),
+
+    deleteAlbum: build.mutation<null, DeleteAlbumArgs>({
+      query: ({ id, reason }) => ({
+        url: `/albums/${id}`,
+        method: 'DELETE',
+        ...(reason !== undefined && reason !== '' && { body: { reason } }),
+      }),
+      invalidatesTags: (_result, _error, { id }) => [
+        { type: 'Album', id },
+        { type: 'Album', id: LIST_ID },
+        'Me',
+      ],
+    }),
+
+    /** Lifts a pseudo-deletion after review. Requires `album.restore`. */
+    restoreAlbum: build.mutation<Album, number>({
+      query: (id) => ({ url: `/albums/${id}/restore`, method: 'POST' }),
+      invalidatesTags: (_result, _error, id) => [
+        { type: 'Album', id },
+        { type: 'Album', id: LIST_ID },
+        'Me',
+      ],
+    }),
+  }),
+})
+
+export const {
+  useMyAlbumsQuery,
+  useAlbumsQuery,
+  useAlbumQuery,
+  useCreateAlbumMutation,
+  useUpdateAlbumMutation,
+  useDeleteAlbumMutation,
+  useRestoreAlbumMutation,
+} = albumsApi

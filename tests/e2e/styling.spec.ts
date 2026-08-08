@@ -1,0 +1,66 @@
+import { expect, test } from '@playwright/test'
+
+import { createAlbum, newAccount, register } from './support'
+
+const WHITE = 'rgb(255, 255, 255)'
+/** `$secondary`, the filled state of the account-menu toggle. */
+const SECONDARY = 'rgb(92, 107, 122)'
+const TRANSPARENT = 'rgba(0, 0, 0, 0)'
+
+/**
+ * Three defects that only exist once the stylesheet is loaded, so neither the
+ * unit nor the functional suite can see them: a hover colour Bootstrap derives
+ * for us, a hover tint that was indistinguishable from its own background, and
+ * a button that gave no sign the menu it controls was open.
+ *
+ * These assert with `toHaveCSS`, which retries — buttons transition their
+ * colours, so a single read lands on the value they are transitioning *from*.
+ */
+test.describe('Contrast and state', () => {
+  test('a destructive button keeps white text while hovered', async ({ page }) => {
+    const account = newAccount('contrast')
+    await register(page, account)
+    await createAlbum(page, `Contrast ${Date.now().toString(36)}`)
+
+    const remove = page.getByRole('button', { name: 'Delete' }).first()
+    await remove.hover()
+
+    // Bootstrap's contrast function picks black here, which is unreadable on
+    // the red fill it picks alongside it.
+    await expect(remove).toHaveCSS('color', WHITE)
+  })
+
+  test('the account menu shows which entry is hovered', async ({ page }) => {
+    const account = newAccount('menuhover')
+    await register(page, account)
+
+    await page.getByRole('button', { name: new RegExp(account.firstName) }).click()
+
+    const entry = page.getByRole('link', { name: 'Profile' })
+    await expect(entry).toHaveCSS('background-color', TRANSPARENT)
+
+    await entry.hover()
+    await expect(entry).not.toHaveCSS('background-color', TRANSPARENT)
+  })
+
+  test('the toggle fills while its menu is open, and clears when dismissed', async ({ page }) => {
+    const account = newAccount('toggle')
+    await register(page, account)
+
+    const toggle = page.getByRole('button', { name: new RegExp(account.firstName) })
+    await expect(toggle).toHaveCSS('background-color', TRANSPARENT)
+
+    await toggle.click()
+    // Step off the button first: it is still hovered from the click, and a
+    // hovered fill is a different shade of the same state.
+    await page.mouse.move(0, 0)
+    await expect(toggle).toHaveCSS('background-color', SECONDARY)
+    await expect(toggle).toHaveCSS('color', WHITE)
+
+    // A click anywhere else puts it back.
+    await page.getByRole('heading', { name: 'My albums' }).click()
+    await page.mouse.move(0, 0)
+    await expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    await expect(toggle).toHaveCSS('background-color', TRANSPARENT)
+  })
+})

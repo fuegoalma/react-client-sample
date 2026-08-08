@@ -1,0 +1,20 @@
+// The single stylesheet entry point. Order matters: our variable overrides are declared first so Bootstrap is
+// *compiled* from them (rather than overridden afterwards), then Bootstrap and
+// its icon font, then our own components.
+
+@import 'variables';
+@import 'bootstrap/scss/bootstrap';
+
+// The icon font ships with a `./fonts` URL relative to its own stylesheet,
+// which resolves against *this* file once compiled. Point it at the package so
+// Vite can find, hash and emit the font files.
+$bootstrap-icons-font-dir: 'bootstrap-icons/font/fonts';
+
+@import 'bootstrap-icons/font/bootstrap-icons';
+@import 'mixins';
+@import 'base';
+@import 'components/buttons';
+@import 'components/layout';
+@import 'components/data';
+@import 'components/auth';
+@import 'components/photos';

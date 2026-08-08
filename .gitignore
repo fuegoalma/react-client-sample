@@ -1,0 +1,31 @@
+node_modules
+dist
+dist-ssr
+coverage
+playwright-report
+test-results
+.vite
+*.tsbuildinfo
+
+# Local CodeGraph index — rebuilt per machine, never deployed.
+.codegraph
+
+# Local AI-agent skill installs (caveman skill manager) — cached per agent runtime, not part of the app.
+.claude/skills
+.agents
+agent
+skills-lock.json
+
+# Sibling API project checked out locally for reference — its own separate repo, not part of this client.
+yii2-api
+
+.env
+.env.local
+.env.*.local
+
+*.log
+npm-debug.log*
+.DS_Store
+.idea
+.vscode/*
+!.vscode/extensions.json

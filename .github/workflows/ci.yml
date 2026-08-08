@@ -1,0 +1,93 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  # The three gates, in the same order and with the same commands as the
+  # Makefile: code style, static analysis, tests. Keep them in sync — they must
+  # stay runnable both ways.
+  checks:
+    name: cs-check · typecheck · tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      # --- static gates first: fast feedback, nothing to boot ---
+      - name: Code style (Prettier · ESLint · Stylelint)
+        run: npm run cs-check
+
+      - name: Static analysis (TypeScript)
+        run: npm run typecheck
+
+      # --- tests: unit + functional, answered by MSW, no API needed ---
+      - name: Run tests
+        run: npm run test -- --coverage
+
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage/
+          retention-days: 7
+
+  # The end-to-end suite drives a real browser against a *running* API, which
+  # this repository does not contain — so it only runs where one is reachable.
+  # Set the `E2E_API_URL` repository variable to enable it; locally it is
+  # `make test-e2e` against the Docker stack.
+  e2e:
+    name: end-to-end (Playwright)
+    runs-on: ubuntu-latest
+    needs: checks
+    if: vars.E2E_API_URL != ''
+
+    env:
+      VITE_API_BASE_URL: ${{ vars.E2E_API_URL }}
+      E2E_BASE_URL: http://localhost:4173
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Build the client
+        run: npm run build
+
+      - name: Serve the build and run the suite
+        run: |
+          npx vite preview --port 4173 --strictPort &
+          for _ in $(seq 1 30); do
+            curl -fsS -o /dev/null http://localhost:4173 && break
+            sleep 2
+          done
+          npm run test:e2e
+
+      - name: Upload the Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7

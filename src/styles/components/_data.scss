@@ -1,0 +1,95 @@
+// Shared list-screen furniture: the filter bar, the sortable table and its
+// pagination. One place, because every list screen renders the same three.
+
+.filterBar {
+  @include app-card-surface(1rem);
+
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: flex-end;
+  margin-bottom: 1rem;
+
+  &__field {
+    flex: 1 1 12rem;
+    min-width: 0;
+  }
+}
+
+// A panel: the same surface as a table, for content that is not one. The table
+// below is a card too, which is why both take it from the one mixin.
+.appCard {
+  @include app-card-surface(0);
+}
+
+.dataTable {
+  @include app-card-surface(0);
+
+  &__scroll {
+    overflow-x: auto;
+  }
+
+  table {
+    margin-bottom: 0;
+  }
+
+  th {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--bs-secondary-color);
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+  }
+
+  td {
+    vertical-align: middle;
+  }
+
+  &__actions {
+    display: flex;
+    gap: 0.375rem;
+    justify-content: flex-end;
+  }
+}
+
+.sortHeader {
+  display: inline-flex;
+  gap: 0.35rem;
+  align-items: center;
+  padding: 0;
+  color: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  background: none;
+  border: 0;
+
+  &:hover {
+    color: var(--bs-primary);
+  }
+
+  &__icon {
+    font-size: 0.7rem;
+    opacity: 0.35;
+  }
+
+  &--active &__icon {
+    opacity: 1;
+  }
+}
+
+.paginationBar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  font-size: 0.8125rem;
+  color: var(--bs-secondary-color);
+  border-top: 1px solid var(--bs-border-color);
+
+  .pagination {
+    margin-bottom: 0;
+  }
+}

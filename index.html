@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en" data-bs-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Photos Client</title>
+    <!--
+      Runtime configuration. In the production image the entrypoint overwrites
+      this file so one built image can be pointed at any API host; in dev it
+      stays empty and the client falls back to import.meta.env.
+    -->
+    <script src="/env.js"></script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

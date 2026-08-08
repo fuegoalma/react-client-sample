@@ -1,0 +1,21 @@
+// Shared style fragments. Anything repeated in more than one component belongs
+// here rather than being copied.
+
+@mixin app-card-surface($padding: 1.25rem) {
+  padding: $padding;
+  background-color: var(--bs-body-bg);
+  border: 1px solid var(--bs-border-color);
+  border-radius: var(--bs-border-radius-lg);
+}
+
+@mixin app-truncate($lines: 1) {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-line-clamp: $lines;
+  -webkit-box-orient: vertical;
+}
+
+@mixin app-focus-ring {
+  outline: 2px solid var(--bs-primary);
+  outline-offset: 2px;
+}
