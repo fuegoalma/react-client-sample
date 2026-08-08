@@ -1,4 +1,4 @@
-name: Demo
+name: Demo and UI kit
 
 # Chained to a green CI on master, like CD: nothing is published from a commit
 # whose tests did not pass.
@@ -21,7 +21,7 @@ permissions:
 
 jobs:
   publish:
-    name: Publish the demo to GitHub Pages
+    name: Publish the demo and the UI kit to GitHub Pages
     runs-on: ubuntu-latest
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
 
@@ -53,6 +53,17 @@ jobs:
       # reload. Serving the shell as the 404 page is the standard workaround.
       - name: Add the SPA fallback
         run: cp dist/index.html dist/404.html
+
+      # The UI kit ships beside the demo on the same site: the demo shows the
+      # components in use, Storybook shows them on their own, including the
+      # states that are awkward to reach in a running application.
+      - name: Build Storybook
+        env:
+          STORYBOOK_BASE: /react-client-sample/storybook/
+        run: npm run build:storybook
+
+      - name: Place Storybook under /storybook
+        run: cp -r storybook-static dist/storybook
 
       - uses: actions/configure-pages@v5
 

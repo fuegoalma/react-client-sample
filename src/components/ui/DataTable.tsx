@@ -11,7 +11,7 @@ export interface Column<T> {
   readonly render: (row: T) => ReactNode
 }
 
-interface DataTableProps<T> {
+export interface DataTableProps<T> {
   readonly columns: readonly Column<T>[]
   readonly rows: readonly T[]
   readonly rowKey: (row: T) => Key

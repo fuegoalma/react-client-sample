@@ -13,6 +13,7 @@ export default tseslint.config(
       'playwright-report',
       'test-results',
       'node_modules',
+      'storybook-static',
       // Generated from the vendored OpenAPI document by `make sync-spec`; its
       // style is openapi-typescript's business, not ours.
       'tests/contract/schema.d.ts',
@@ -75,6 +76,14 @@ export default tseslint.config(
     // called with none. The rule has no option for a call's type arguments.
     files: ['src/repositories/**/*.ts'],
     rules: { '@typescript-eslint/no-invalid-void-type': 'off' },
+  },
+
+  {
+    // Stories are sample data for the UI kit, not application code: a story
+    // exports a plain object beside its component, which is exactly what the
+    // fast-refresh rule exists to flag in a real module.
+    files: ['src/**/*.stories.tsx'],
+    rules: { 'react-refresh/only-export-components': 'off' },
   },
 
   {

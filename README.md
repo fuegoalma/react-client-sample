@@ -4,7 +4,7 @@
 [![CD](https://github.com/fuegoalma/react-client-sample/actions/workflows/cd.yml/badge.svg)](https://github.com/fuegoalma/react-client-sample/actions/workflows/cd.yml)
 [![Demo](https://github.com/fuegoalma/react-client-sample/actions/workflows/pages.yml/badge.svg)](https://fuegoalma.github.io/react-client-sample/)
 
-**[▶ Try the live demo](https://fuegoalma.github.io/react-client-sample/)** — no
+**[▶ Live demo](https://fuegoalma.github.io/react-client-sample/)** · **[UI kit](https://fuegoalma.github.io/react-client-sample/storybook/)** — no
 sign-up, no server. Every response comes from an in-browser mock of the API,
 which is the _same_ mock the test suite runs against, so you can create albums,
 upload photos and hand yourself roles. Sign in with `ada@example.com` /
@@ -44,6 +44,9 @@ document rather than against a hand-written copy of it.
 - **[`tests/mocks/`](tests/mocks/)** — a small re-implementation of the API,
   not canned responses, with its permission logic deliberately re-derived rather
   than imported from `src/` ([ADR 5](docs/adr/0005-mock-api-as-independent-mirror.md)).
+- **[The UI kit](https://fuegoalma.github.io/react-client-sample/storybook/)** —
+  one modal shell, one table, one loading/failed/empty triad, each shown on its
+  own in both themes with axe running per component.
 
 **411 Vitest tests at 100% coverage** — lines, branches, functions and
 statements — plus 21 Playwright specs. Coverage is a build gate, not a report:

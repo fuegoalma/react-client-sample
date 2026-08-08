@@ -359,6 +359,25 @@ issued by the transport, not a repository, and `/albums` offers a `user_id`
 filter the client does not — an album list response carries no owner, so there
 would be nothing to filter against.
 
+## The UI kit
+
+The shared components — `Modal`, `DataTable`, `QueryBoundary`, `Skeleton`,
+`PaginationBar`, `ToastStack` — are designed to be reused, but inside the
+application each is only ever seen in the one state that screen happens to need.
+Storybook shows them on their own, including the states that are awkward to
+reach in a running client: a confirmation mid-request, a list that came back
+empty, a 409 whose wording the server chose.
+
+```bash
+make storybook          # http://localhost:6006 (host, like Playwright)
+make build-storybook
+```
+
+It loads the real stylesheet rather than an approximation, has a light/dark
+switch in the toolbar, and runs the a11y addon per story — the same axe rules
+the functional suite runs in jsdom and Playwright runs against the built page.
+It is published beside the demo, under `/storybook`.
+
 ## The published demo
 
 `npm run build:demo` produces a build that starts

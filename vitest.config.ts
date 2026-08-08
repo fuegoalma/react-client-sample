@@ -65,6 +65,9 @@ export default defineConfig({
         'src/vite-env.d.ts',
         'src/types/**',
         'src/**/index.ts',
+        // Storybook stories: sample props for the UI kit, exercised by
+        // Storybook's own a11y run rather than by Vitest.
+        'src/**/*.stories.tsx',
       ],
       thresholds: {
         lines: 100,

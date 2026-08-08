@@ -8,7 +8,7 @@ PROD_PORT       ?= 8092
 PROD_API_URL    ?= http://localhost:8084
 
 .PHONY: help init setup up down restart rebuild logs sh install \
-        build preview size prod-build prod-run \
+        build preview size storybook build-storybook prod-build prod-run \
         test test-coverage test-unit test-functional test-contract test-one test-e2e e2e-install \
         sync-spec \
         cs-check cs-fix typecheck check clean
@@ -25,6 +25,8 @@ help:
 	@echo "  build                Build the production bundle"
 	@echo "  preview              Serve the built bundle on PREVIEW_PORT (default 8093)"
 	@echo "  size                 Check the built bundle against its size budget"
+	@echo "  storybook            Run the UI kit on http://localhost:6006 (host)"
+	@echo "  build-storybook      Build the static UI kit"
 	@echo "  prod-build           Build the deployable Apache image (Dockerfile prod stage)"
 	@echo "  prod-run             Run that image on PROD_PORT (stop the dev stack first)"
 	@echo "  test                 Run the full Vitest suite"
@@ -90,6 +92,15 @@ prod-build:
 prod-run:
 	@echo "→ http://localhost:$(PROD_PORT)  (API: $(PROD_API_URL))"
 	docker run --rm -p $(PROD_PORT):80 -e VITE_API_BASE_URL=$(PROD_API_URL) $(PROD_IMAGE)
+
+# --- the UI kit ------------------------------------------------------------
+
+# Storybook runs on the host: it needs a browser to be useful, like Playwright.
+storybook:
+	npx storybook dev -p 6006
+
+build-storybook:
+	npx storybook build -o storybook-static
 
 # --- the API contract ------------------------------------------------------
 
