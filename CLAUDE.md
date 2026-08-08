@@ -267,7 +267,7 @@ Never read `import.meta.env` directly outside `src/config/` — a value baked at
 
 ## Testing Conventions
 
-Three suites, mirroring the API's own split. **390 Vitest tests** (168 unit + 222 functional across 33 files) at **100% coverage — lines, branches, functions and statements alike** — plus **21 Playwright specs**.
+Four suites, mirroring the API's own split plus a contract suite. **451 Vitest tests** across 44 files (unit, contract, functional) at **100% coverage — lines, branches, functions and statements alike** — plus **24 Playwright specs**.
 
 **Work test-first.** The 100% floor is enforced, not aspirational, so there is no "add tests later": an uncovered line fails the build on the commit that introduced it. Which form of test-first depends on what you are doing:
 

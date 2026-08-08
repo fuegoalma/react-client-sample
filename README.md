@@ -15,6 +15,13 @@ photos** — JWT with a two-token model, flat role-based access control. It uses
 every endpoint the API exposes, and is checked against the API's own OpenAPI
 document rather than against a hand-written copy of it.
 
+| Light                                                                     | Dark                                                           |
+| ------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| ![An album and its photos, light theme](docs/screenshots/album-light.png) | ![The same album, dark theme](docs/screenshots/album-dark.png) |
+
+<sub>Both are taken from the running application by `make screenshots`, not
+mocked up. The theme follows the operating system until you choose otherwise.</sub>
+
 ---
 
 ## Stack
@@ -28,6 +35,44 @@ document rather than against a hand-written copy of it.
 | Styling         | Bootstrap 5.3 compiled from SCSS; every application style is SCSS         |
 | Tests           | Vitest + Testing Library + MSW; Playwright against the real API           |
 | Container       | Multi-stage Dockerfile: Vite dev server locally, **Apache** in production |
+
+## How it is put together
+
+The layering mirrors the API's own — Controller → Form Request → Service →
+Repository — translated to what a client actually has. The service layer exists
+**only where it decides something**; a screen with no rules of its own goes
+straight from its hook to a repository ([ADR 3](docs/adr/0003-no-pass-through-services.md)).
+
+```mermaid
+flowchart LR
+  subgraph UI["Screen"]
+    P["Page + container hook<br/><i>orchestrates, no rules</i>"]
+    F["Zod schema + ListSpec<br/><i>the client's form request</i>"]
+  end
+
+  subgraph Logic["Services — only where there is a decision"]
+    POL["PermissionService<br/>Album · Photo · User · Role policies"]
+    LQ["ListQueryBuilder"]
+  end
+
+  subgraph Data["Repositories — the only place that knows URLs"]
+    R["RTK Query endpoints<br/><i>one module per resource</i>"]
+    T["Transport<br/><i>envelope · errors · single-flight refresh</i>"]
+  end
+
+  C["contracts/<br/>TokenStorage · PermissionChecker<br/>ErrorReporter · ThemePreference"]
+  API[("Yii2 REST API")]
+
+  P --> POL
+  P --> F
+  P --> R
+  F --> LQ
+  LQ --> R
+  R --> T
+  T --> API
+  C -. "injected at the composition root" .-> T
+  C -.-> POL
+```
 
 ## What is worth looking at
 
@@ -48,7 +93,7 @@ document rather than against a hand-written copy of it.
   one modal shell, one table, one loading/failed/empty triad, each shown on its
   own in both themes with axe running per component.
 
-**411 Vitest tests at 100% coverage** — lines, branches, functions and
+**451 Vitest tests at 100% coverage** — lines, branches, functions and
 statements — plus 21 Playwright specs. Coverage is a build gate, not a report:
 an uncovered line fails the commit that introduced it.
 

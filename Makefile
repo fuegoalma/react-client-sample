@@ -8,7 +8,7 @@ PROD_PORT       ?= 8092
 PROD_API_URL    ?= http://localhost:8084
 
 .PHONY: help init setup up down restart rebuild logs sh install \
-        build preview size storybook build-storybook prod-build prod-run \
+        build preview size storybook build-storybook screenshots prod-build prod-run \
         test test-coverage test-unit test-functional test-contract test-one test-e2e e2e-install \
         sync-spec \
         cs-check cs-fix typecheck check clean
@@ -27,6 +27,7 @@ help:
 	@echo "  size                 Check the built bundle against its size budget"
 	@echo "  storybook            Run the UI kit on http://localhost:6006 (host)"
 	@echo "  build-storybook      Build the static UI kit"
+	@echo "  screenshots          Regenerate the README screenshots (host, needs make up)"
 	@echo "  prod-build           Build the deployable Apache image (Dockerfile prod stage)"
 	@echo "  prod-run             Run that image on PROD_PORT (stop the dev stack first)"
 	@echo "  test                 Run the full Vitest suite"
@@ -92,6 +93,13 @@ prod-build:
 prod-run:
 	@echo "→ http://localhost:$(PROD_PORT)  (API: $(PROD_API_URL))"
 	docker run --rm -p $(PROD_PORT):80 -e VITE_API_BASE_URL=$(PROD_API_URL) $(PROD_IMAGE)
+
+# --- documentation ---------------------------------------------------------
+
+# Regenerates the README's screenshots from the running stack. On the host, like
+# the rest of Playwright: it drives a real browser.
+screenshots:
+	node scripts/screenshots.mjs
 
 # --- the UI kit ------------------------------------------------------------
 

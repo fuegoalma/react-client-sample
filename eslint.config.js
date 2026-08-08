@@ -96,7 +96,10 @@ export default tseslint.config(
   },
 
   {
-    files: ['**/*.js'],
+    // Plain scripts: `public/env.js` runs in the browser, `scripts/*.mjs` in
+    // Node. Neither is in the TypeScript program, so they get the recommended
+    // rules and the globals both environments provide.
+    files: ['**/*.js', '**/*.mjs'],
     languageOptions: {
       globals: { ...globals.browser, ...globals.node },
     },

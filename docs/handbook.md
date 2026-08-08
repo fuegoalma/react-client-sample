@@ -393,7 +393,7 @@ cannot drift from what the suite proves.
 
 ## Testing
 
-Four suites. **411 Vitest tests** across 38 files (unit, contract and
+Four suites. **451 Vitest tests** across 44 files (unit, contract and
 functional) at **100% coverage — lines, branches, functions and statements** —
 plus **21 Playwright specs**.
 
