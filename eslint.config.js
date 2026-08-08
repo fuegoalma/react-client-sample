@@ -16,6 +16,8 @@ export default tseslint.config(
       // Generated from the vendored OpenAPI document by `make sync-spec`; its
       // style is openapi-typescript's business, not ours.
       'tests/contract/schema.d.ts',
+      // Shipped verbatim by `msw init`, and replaced wholesale on upgrade.
+      'public/mockServiceWorker.js',
     ],
   },
 

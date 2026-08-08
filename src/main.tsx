@@ -3,10 +3,13 @@ import { StrictMode, type ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { Provider } from 'react-redux'
 
+import { onCLS, onINP, onLCP } from 'web-vitals'
+
 import { App } from '@/app/App'
 import { store } from '@/app/store'
 import { DemoBanner } from '@/components'
 import { config } from '@/config'
+import { ConsoleErrorReporter } from '@/services'
 
 import './styles/main.scss'
 
@@ -45,12 +48,46 @@ setupListeners(store.dispatch)
 
 document.title = config.appName
 
+/*
+ * The one place a reporter is chosen. Swapping the console for a hosted service
+ * is this line and nothing else — that is what the `ErrorReporter` contract
+ * buys, exactly as `TokenStorage` does for persistence.
+ */
+const reporter = new ConsoleErrorReporter()
+
+onCLS((metric) => {
+  reporter.reportMetric(metric)
+})
+onINP((metric) => {
+  reporter.reportMetric(metric)
+})
+onLCP((metric) => {
+  reporter.reportMetric(metric)
+})
+
 const container = document.getElementById('root')
 if (container === null) {
   throw new Error('Root container #root is missing from index.html')
 }
 
-const root = createRoot(container)
+/*
+ * Reporting is wired here rather than inside `ErrorBoundary`.
+ *
+ * `onCaughtError` fires for everything a boundary catches and `onUncaughtError`
+ * for everything that gets past one, so the boundary stays a plain component
+ * with no dependency on a reporter — and no failure is reported twice.
+ */
+const root = createRoot(container, {
+  onCaughtError: (error, info) => {
+    reporter.reportError(error, {
+      source: 'boundary',
+      ...(info.componentStack != null && { componentStack: info.componentStack }),
+    })
+  },
+  onUncaughtError: (error) => {
+    reporter.reportError(error, { source: 'unhandled' })
+  },
+})
 
 function render(banner: ReactNode) {
   root.render(
