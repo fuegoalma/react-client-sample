@@ -69,8 +69,16 @@ jobs:
             | grep -q "connect-src 'self' http://api.example.test"
           curl -fsSI http://localhost:8092/ | grep -qi '^permissions-policy:'
 
+          # No source map reaches the document root. `sourcemap: 'hidden'` only
+          # stops the bundle pointing at them; the files were still shipped and
+          # served in full until the Dockerfile started deleting them.
+          test "$(docker exec client-smoke find /usr/local/apache2/htdocs -name '*.map' | wc -l)" -eq 0
+          # ...and asking for one is answered 404, not 200-with-the-shell, which
+          # is what the SPA fallback would otherwise do.
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8092/assets/index.js.map)" = 404
+
           docker stop client-smoke
-          echo "✅ Production image built, Apache serves the SPA, its runtime config and its CSP."
+          echo "✅ Production image built; Apache serves the SPA, its runtime config and its CSP — and no source maps."
 
   # 2. "Deploy" the built image. We don't run a real server (out of scope for
   #    this sample), so the release is simulated — but it goes through a proper

@@ -52,6 +52,18 @@ RUN chmod +x /usr/local/bin/entrypoint.sh
 
 COPY --from=build /app/dist/ /usr/local/apache2/htdocs/
 
+# The build emits source maps but does not advertise them (`sourcemap: 'hidden'`
+# in vite.config.ts): no `sourceMappingURL` comment points at them. That hides
+# them from a casual look and nothing more — the files themselves are still
+# fetchable at a guessable address, which is the whole unminified source served
+# to anyone who asks.
+#
+# They are deleted from the document root rather than from the build, because
+# the build artifact is exactly what an error reporter wants: Sentry and friends
+# take maps by *upload*, so a stack trace can be symbolicated without the map
+# ever being public. See src/contracts/ErrorReporter.ts.
+RUN find /usr/local/apache2/htdocs -name '*.map' -delete
+
 # The API URL is injected into env.js at container start, not baked at build,
 # so the same image runs against any environment.
 ENV VITE_API_BASE_URL=http://localhost:8084 \
