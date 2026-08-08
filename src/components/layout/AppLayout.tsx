@@ -1,7 +1,7 @@
-import { useEffect, useRef } from 'react'
+import { Suspense, useEffect, useRef } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
 
-import { ToastStack } from '@/components/ui'
+import { ErrorBoundary, Spinner, ToastStack } from '@/components/ui'
 
 import { HealthBadge } from './HealthBadge'
 import { Navbar } from './Navbar'
@@ -44,7 +44,16 @@ export function AppLayout() {
       <ToastStack />
 
       <main className="appMain" id={MAIN_ID} ref={mainRef} tabIndex={-1}>
-        <Outlet />
+        {/* Around the routed content, not around the shell: a screen that
+            throws must not take the navigation — and the way out — with it.
+            Keyed by path so moving to another screen clears a failed one. */}
+        <ErrorBoundary key={pathname}>
+          {/* One boundary for every split route: they all arrive through this
+              outlet, and `Spinner` is the same wait the query boundary shows. */}
+          <Suspense fallback={<Spinner label="Loading the screen…" />}>
+            <Outlet />
+          </Suspense>
+        </ErrorBoundary>
       </main>
 
       <footer className="appFooter">

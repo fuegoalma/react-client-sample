@@ -48,6 +48,11 @@ jobs:
       - name: Build the bundle
         run: npm run build
 
+      # A bundle regression is invisible in a diff — it arrives as one more
+      # import in a file that looks harmless.
+      - name: Bundle budget
+        run: npm run size
+
       # --- tests: unit + functional, answered by MSW, no API needed ---
       - name: Run tests
         run: npm run test -- --coverage

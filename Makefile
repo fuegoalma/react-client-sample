@@ -8,7 +8,7 @@ PROD_PORT       ?= 8092
 PROD_API_URL    ?= http://localhost:8084
 
 .PHONY: help init setup up down restart rebuild logs sh install \
-        build preview prod-build prod-run \
+        build preview size prod-build prod-run \
         test test-unit test-functional test-one test-e2e e2e-install \
         cs-check cs-fix typecheck check clean
 
@@ -23,6 +23,7 @@ help:
 	@echo "  install              Install npm dependencies inside the container"
 	@echo "  build                Build the production bundle"
 	@echo "  preview              Serve the built bundle on PREVIEW_PORT (default 8093)"
+	@echo "  size                 Check the built bundle against its size budget"
 	@echo "  prod-build           Build the deployable Apache image (Dockerfile prod stage)"
 	@echo "  prod-run             Run that image on PROD_PORT (stop the dev stack first)"
 	@echo "  test                 Run the full Vitest suite (unit + functional)"
@@ -35,7 +36,7 @@ help:
 	@echo "  cs-check             Show code style violations (Prettier + ESLint + Stylelint)"
 	@echo "  cs-fix               Auto-fix code style across the whole codebase"
 	@echo "  typecheck            Run the TypeScript compiler in check-only mode"
-	@echo "  check                cs-check + typecheck + build + test (exactly what CI runs)"
+	@echo "  check                cs-check + typecheck + build + size + test (exactly what CI runs)"
 	@echo "  clean                Remove build output and caches"
 
 init:
@@ -68,6 +69,10 @@ install:
 
 build:
 	$(APP) npm run build
+
+# The bundle budget, measured on the built assets — so it needs `build` first.
+size: build
+	$(APP) npm run size
 
 preview: build
 	@echo "→ http://localhost:$${PREVIEW_PORT:-8093}"
@@ -119,7 +124,7 @@ typecheck:
 # `build` earns its place next to `typecheck`: tsc in check-only mode never asks
 # Vite to resolve an import, an alias or an asset, so a bundle can break while
 # the types are perfectly fine.
-check: cs-check typecheck build test
+check: cs-check typecheck build size test
 
 clean:
 	rm -rf dist coverage playwright-report test-results node_modules/.tmp node_modules/.vite

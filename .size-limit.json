@@ -1,0 +1,19 @@
+[
+  {
+    "name": "initial JavaScript",
+    "path": [
+      "dist/assets/index-*.js",
+      "dist/assets/react-*.js",
+      "dist/assets/redux-*.js",
+      "dist/assets/forms-*.js"
+    ],
+    "limit": "235 kB",
+    "gzip": true
+  },
+  {
+    "name": "stylesheet",
+    "path": "dist/assets/*.css",
+    "limit": "52 kB",
+    "gzip": true
+  }
+]

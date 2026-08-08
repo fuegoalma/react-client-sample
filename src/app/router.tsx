@@ -1,22 +1,49 @@
+import { lazy } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 
 import { AppLayout, RequireAuth, RequirePermission } from '@/components'
 import { HealthPage } from '@/pages/HealthPage'
 import { NotFoundPage } from '@/pages/NotFoundPage'
-import { PermissionsPage } from '@/pages/PermissionsPage'
 import { ProfilePage } from '@/pages/ProfilePage'
 import { AlbumDetailPage } from '@/pages/albums/AlbumDetailPage'
-import { AllAlbumsPage } from '@/pages/albums/AllAlbumsPage'
 import { MyAlbumsPage } from '@/pages/albums/MyAlbumsPage'
 import { LoginPage } from '@/pages/auth/LoginPage'
 import { RegisterPage } from '@/pages/auth/RegisterPage'
 import { PhotoDetailPage } from '@/pages/photos/PhotoDetailPage'
-import { RoleEditorPage } from '@/pages/roles/RoleEditorPage'
-import { RolesPage } from '@/pages/roles/RolesPage'
-import { UserDetailPage } from '@/pages/users/UserDetailPage'
-import { UserRolesPage } from '@/pages/users/UserRolesPage'
-import { UsersPage } from '@/pages/users/UsersPage'
 import { PERMISSIONS } from '@/services'
+
+/*
+ * The privileged screens are split out of the initial bundle.
+ *
+ * Every one of them sits behind a `RequirePermission` gate, so a base user —
+ * the common case — can never reach them, and downloading them on sign-in is
+ * paying for a screen that will not be shown. They are fetched when their route
+ * is first entered instead.
+ *
+ * The screens above stay static: they are what the caller lands on, and
+ * deferring those would only trade a smaller bundle for a slower first paint.
+ */
+const AllAlbumsPage = lazy(async () => ({
+  default: (await import('@/pages/albums/AllAlbumsPage')).AllAlbumsPage,
+}))
+const UsersPage = lazy(async () => ({
+  default: (await import('@/pages/users/UsersPage')).UsersPage,
+}))
+const UserDetailPage = lazy(async () => ({
+  default: (await import('@/pages/users/UserDetailPage')).UserDetailPage,
+}))
+const UserRolesPage = lazy(async () => ({
+  default: (await import('@/pages/users/UserRolesPage')).UserRolesPage,
+}))
+const RolesPage = lazy(async () => ({
+  default: (await import('@/pages/roles/RolesPage')).RolesPage,
+}))
+const RoleEditorPage = lazy(async () => ({
+  default: (await import('@/pages/roles/RoleEditorPage')).RoleEditorPage,
+}))
+const PermissionsPage = lazy(async () => ({
+  default: (await import('@/pages/PermissionsPage')).PermissionsPage,
+}))
 
 /**
  * The route table.

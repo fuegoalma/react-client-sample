@@ -48,6 +48,24 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
-    sourcemap: true,
+    // Emitted, but not advertised: the browser only fetches a source map when
+    // devtools are open and asked to, while `true` appends a comment that
+    // publishes the whole unminified source to anyone who looks.
+    sourcemap: 'hidden',
+    rollupOptions: {
+      output: {
+        // The framework changes on our release schedule, the dependencies on
+        // theirs — splitting them means a code change does not invalidate the
+        // cached copy of React and Redux along with it.
+        manualChunks: {
+          // `react-dom/client` is listed in its own right: it is the entry the
+          // application actually imports, and a bare 'react-dom' does not
+          // resolve to the same module, leaving the bulk of it behind.
+          react: ['react', 'react-dom', 'react-dom/client', 'react-router-dom'],
+          redux: ['@reduxjs/toolkit', 'react-redux'],
+          forms: ['react-hook-form', '@hookform/resolvers', 'zod'],
+        },
+      },
+    },
   },
 })
