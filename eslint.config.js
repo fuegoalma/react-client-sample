@@ -7,7 +7,16 @@ import tseslint from 'typescript-eslint'
 
 export default tseslint.config(
   {
-    ignores: ['dist', 'coverage', 'playwright-report', 'test-results', 'node_modules'],
+    ignores: [
+      'dist',
+      'coverage',
+      'playwright-report',
+      'test-results',
+      'node_modules',
+      // Generated from the vendored OpenAPI document by `make sync-spec`; its
+      // style is openapi-typescript's business, not ours.
+      'tests/contract/schema.d.ts',
+    ],
   },
 
   js.configs.recommended,

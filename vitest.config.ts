@@ -32,6 +32,17 @@ export default defineConfig({
         },
       },
       {
+        resolve: { alias },
+        test: {
+          // The client's own reading of the OpenAPI document, checked against
+          // the vendored copy of it rather than against a hand-written mirror.
+          name: 'contract',
+          globals: true,
+          environment: 'node',
+          include: ['tests/contract/**/*.test.ts'],
+        },
+      },
+      {
         plugins: [react()],
         resolve: { alias },
         test: {

@@ -4,3 +4,8 @@ coverage
 playwright-report
 test-results
 package-lock.json
+
+# Vendored verbatim from the running API, and generated from it, by
+# `make sync-spec`. Reformatting either would make every sync show a diff.
+tests/contract/openapi.yaml
+tests/contract/schema.d.ts

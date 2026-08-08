@@ -9,7 +9,8 @@ PROD_API_URL    ?= http://localhost:8084
 
 .PHONY: help init setup up down restart rebuild logs sh install \
         build preview size prod-build prod-run \
-        test test-unit test-functional test-one test-e2e e2e-install \
+        test test-unit test-functional test-contract test-one test-e2e e2e-install \
+        sync-spec \
         cs-check cs-fix typecheck check clean
 
 help:
@@ -29,6 +30,8 @@ help:
 	@echo "  test                 Run the full Vitest suite (unit + functional)"
 	@echo "  test-unit            Run unit tests only"
 	@echo "  test-functional      Run functional tests only"
+	@echo "  test-contract        Run the OpenAPI contract tests only"
+	@echo "  sync-spec            Refetch the OpenAPI document and regenerate its types"
 	@echo "  test-one file=<path> Run a single test file"
 	@echo "  test-e2e             Run the Playwright suite against the running stack (host)"
 	@echo "                       Set E2E_ADMIN_EMAIL in .env to include the RBAC screens"
@@ -86,6 +89,21 @@ prod-build:
 prod-run:
 	@echo "→ http://localhost:$(PROD_PORT)  (API: $(PROD_API_URL))"
 	docker run --rm -p $(PROD_PORT):80 -e VITE_API_BASE_URL=$(PROD_API_URL) $(PROD_IMAGE)
+
+# --- the API contract ------------------------------------------------------
+
+# Refetches the OpenAPI document from a running API and regenerates the types
+# the contract suite checks against. The copy is committed so CI — which has no
+# API — can still run those tests.
+API_URL ?= http://localhost:8084
+
+sync-spec:
+	curl -fsS $(API_URL)/docs/openapi.yaml -o tests/contract/openapi.yaml
+	$(APP) npx openapi-typescript tests/contract/openapi.yaml -o tests/contract/schema.d.ts
+	@echo "→ spec and types refreshed; run 'make test-contract' to see what moved"
+
+test-contract:
+	$(APP) npm run test:contract
 
 # --- tests -----------------------------------------------------------------
 

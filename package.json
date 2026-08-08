@@ -29,6 +29,7 @@
     "test": "vitest run",
     "test:unit": "vitest run --project unit",
     "test:functional": "vitest run --project functional",
+    "test:contract": "vitest run --project contract",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "prepare": "husky"
@@ -72,6 +73,7 @@
     "jsdom": "^28.0.0",
     "lint-staged": "^17.3.0",
     "msw": "^2.11.5",
+    "openapi-typescript": "^7.13.0",
     "prettier": "^3.6.2",
     "sass-embedded": "^1.94.1",
     "size-limit": "^13.0.3",
@@ -80,7 +82,8 @@
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.46.4",
     "vite": "^7.2.2",
-    "vitest": "^3.2.4"
+    "vitest": "^3.2.4",
+    "yaml": "^2.9.0"
   },
   "allowScripts": {
     "@parcel/watcher@2.6.0": true,
