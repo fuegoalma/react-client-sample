@@ -2,6 +2,7 @@ import { ListQueryBuilder } from '@/services/listQuery'
 import type {
   Album,
   AlbumCreateRequest,
+  AlbumSoftDeleteRequest,
   AlbumUpdateRequest,
   AlbumView,
   ListQuery,
@@ -14,9 +15,8 @@ import { baseApi, LIST_ID } from './baseApi'
  * `DELETE /albums/{id}` is one route with two outcomes decided server-side by
  * the caller's permissions; the optional reason is only read for a soft delete.
  */
-export interface DeleteAlbumArgs {
+export interface DeleteAlbumArgs extends AlbumSoftDeleteRequest {
   readonly id: number
-  readonly reason?: string
 }
 
 export const albumsApi = baseApi.injectEndpoints({

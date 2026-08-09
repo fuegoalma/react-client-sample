@@ -51,6 +51,11 @@ export interface AlbumCreateRequest {
 
 export type AlbumUpdateRequest = Partial<AlbumCreateRequest>
 
+/** Optional body of a soft delete — the reason a flagged album carries. */
+export interface AlbumSoftDeleteRequest {
+  readonly reason?: string
+}
+
 export interface Photo {
   readonly id: number
   readonly title: string
