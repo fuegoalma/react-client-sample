@@ -10,8 +10,9 @@ export interface Pagination {
   readonly per_page: number
   readonly current_page: number
   readonly last_page: number
-  readonly from: number | null
-  readonly to: number | null
+  /** 0 on a page with nothing on it — the API never sends null here. */
+  readonly from: number
+  readonly to: number
 }
 
 /** The `data` of a list endpoint. */

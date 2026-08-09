@@ -92,7 +92,7 @@ export const Failed: Story = {
 export const Empty: Story = {
   args: {
     result: {
-      data: { items: [], pagination: { ...pagination, total: 0, to: null, from: null } },
+      data: { items: [], pagination: { ...pagination, total: 0, from: 0, to: 0 } },
       isLoading: false,
       isFetching: false,
     },

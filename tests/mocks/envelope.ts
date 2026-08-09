@@ -118,7 +118,9 @@ export function paginate<T extends object>({
 
   const page = Number(url.searchParams.get('page') ?? '1')
   const total = rows.length
-  const lastPage = Math.max(Math.ceil(total / perPage), 1)
+  // 0 when nothing matched, not 1 — the API reports no pages rather than one
+  // empty one, and a mock that rounds it up is a mock of the client's guess.
+  const lastPage = Math.ceil(total / perPage)
   const slice = rows.slice((page - 1) * perPage, page * perPage)
 
   return ok({
@@ -128,8 +130,12 @@ export function paginate<T extends object>({
       per_page: perPage,
       current_page: page,
       last_page: lastPage,
-      from: slice.length === 0 ? null : (page - 1) * perPage + 1,
-      to: slice.length === 0 ? null : (page - 1) * perPage + slice.length,
+      // The API reports 0–0 on a page with nothing on it, not null: verified
+      // against it directly, both for an empty result set and for a page past
+      // the last one. This mock previously invented `null`, which is how the
+      // client came to defend against a value it can never be sent.
+      from: slice.length === 0 ? 0 : (page - 1) * perPage + 1,
+      to: slice.length === 0 ? 0 : (page - 1) * perPage + slice.length,
     },
   })
 }

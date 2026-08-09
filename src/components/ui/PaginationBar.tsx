@@ -30,11 +30,9 @@ export function PaginationBar({ pagination, onPageChange }: PaginationBarProps) 
 
   return (
     <div className="paginationBar">
-      {/* `from` and `to` are null exactly when the page is empty, which the
-          first branch already answers — so neither needs a fallback here. */}
-      <span>
-        {from === null || to === null ? 'No results' : `Showing ${from}–${to} of ${total}`}
-      </span>
+      {/* An empty page reports 0–0, which reads as a slice that isn't there.
+          `total` is what decides whether there is anything to show at all. */}
+      <span>{total === 0 ? 'No results' : `Showing ${from}–${to} of ${total}`}</span>
 
       {last > 1 && (
         <nav aria-label="Pagination">

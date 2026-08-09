@@ -36,7 +36,7 @@ describe('PaginationBar', () => {
   it('says so plainly when there is nothing to page through', () => {
     renderWithProviders(
       <PaginationBar
-        pagination={pagination({ total: 0, last_page: 1, from: null, to: null })}
+        pagination={pagination({ total: 0, last_page: 1, from: 0, to: 0 })}
         onPageChange={vi.fn()}
       />,
     )

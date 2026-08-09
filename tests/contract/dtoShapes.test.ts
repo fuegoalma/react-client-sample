@@ -5,6 +5,7 @@ import type {
   AlbumView,
   Me,
   MePermissions,
+  Pagination,
   Permission,
   Photo,
   Role,
@@ -52,11 +53,15 @@ const _permission: SameKeys<Permission, Schemas['Permission']> = true
 const _userWithAlbums: SameKeys<UserWithAlbums, Schemas['UserWithAlbums']> = true
 const _me: SameKeys<Me, Schemas['Me']> = true
 const _mePermissions: SameKeys<MePermissions, Schemas['MePermissions']> = true
+const _pagination: SameKeys<Pagination, Schemas['Pagination']> = true
 
 const _albumTypes: SameTypes<Album, Schemas['Album']> = true
 const _photoTypes: SameTypes<Photo, Schemas['Photo']> = true
 const _roleTypes: SameTypes<Role, Schemas['Role']> = true
 const _permissionTypes: SameTypes<Permission, Schemas['Permission']> = true
+// `from`/`to` are why this line exists: our DTO said `number | null` while the
+// spec — and the API — say `integer`, and nothing was comparing the two.
+const _paginationTypes: SameTypes<Pagination, Schemas['Pagination']> = true
 
 describe('The DTOs mirror the API schemas', () => {
   it('is proven by the compiler, which is what `make typecheck` runs', () => {
@@ -73,10 +78,12 @@ describe('The DTOs mirror the API schemas', () => {
       _userWithAlbums,
       _me,
       _mePermissions,
+      _pagination,
       _albumTypes,
       _photoTypes,
       _roleTypes,
       _permissionTypes,
+      _paginationTypes,
     ]).not.toContain(false)
   })
 })
