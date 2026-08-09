@@ -25,23 +25,19 @@ export function RegisterPage() {
   const {
     register,
     handleSubmit,
-    applyApiError,
+    submit,
     formState: { errors },
   } = form
 
-  const onSubmit = async ({
-    password_confirm: _confirm,
-    ...values
-  }: RegisterValues): Promise<void> => {
-    try {
-      // The confirmation is form state, not an attribute the API knows.
-      await createAccount(values)
-      void navigate('/albums', { replace: true })
-    } catch (error) {
-      // A duplicate email comes back as a 422 on the `email` field.
-      applyApiError(error)
-    }
-  }
+  const onSubmit = ({ password_confirm: _confirm, ...values }: RegisterValues): Promise<void> =>
+    // The confirmation is form state, not an attribute the API knows. No toast:
+    // landing on your own albums, signed in, is the confirmation. A duplicate
+    // email comes back as a 422 on the `email` field.
+    submit(createAccount(values), {
+      onDone: () => {
+        void navigate('/albums', { replace: true })
+      },
+    })
 
   return (
     <AuthLayout

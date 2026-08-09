@@ -1,6 +1,6 @@
 import { FormAlert, FormField, FormModal, fieldClass } from '@/components/ui'
 import { albumSchema, type AlbumValues } from '@/forms'
-import { useApiForm, useNotifications } from '@/hooks'
+import { useApiForm } from '@/hooks'
 import { useCreateAlbumMutation, useUpdateAlbumMutation } from '@/repositories'
 
 export interface AlbumSummary {
@@ -30,28 +30,23 @@ export function AlbumFormDialog({ open, album, onClose }: AlbumFormDialogProps) 
 function AlbumForm({ album, onClose }: Omit<AlbumFormDialogProps, 'open'>) {
   const [createAlbum, { isLoading: isCreating }] = useCreateAlbumMutation()
   const [updateAlbum, { isLoading: isUpdating }] = useUpdateAlbumMutation()
-  const { reportSuccess } = useNotifications()
 
   const isEdit = album !== undefined
   const {
     register,
     handleSubmit,
-    applyApiError,
+    submit,
     formState: { errors },
   } = useApiForm(albumSchema, { title: album?.title ?? '' })
 
-  const onSubmit = async (values: AlbumValues): Promise<void> => {
-    try {
-      const saved = isEdit
-        ? await updateAlbum({ id: album.id, body: values }).unwrap()
-        : await createAlbum(values).unwrap()
-
-      reportSuccess(isEdit ? 'Album updated.' : `Album “${saved.title}” created.`)
-      onClose()
-    } catch (error) {
-      applyApiError(error)
-    }
-  }
+  const onSubmit = (values: AlbumValues): Promise<void> =>
+    submit(
+      isEdit ? updateAlbum({ id: album.id, body: values }).unwrap() : createAlbum(values).unwrap(),
+      {
+        success: (saved) => (isEdit ? 'Album updated.' : `Album “${saved.title}” created.`),
+        onDone: onClose,
+      },
+    )
 
   return (
     <FormModal

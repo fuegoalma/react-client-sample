@@ -17,21 +17,20 @@ export function LoginPage() {
   const {
     register,
     handleSubmit,
-    applyApiError,
+    submit,
     formState: { errors },
   } = form
 
   // Return the user to wherever RequireAuth interrupted them.
   const redirectTo = (location.state as RedirectState | null)?.from?.pathname ?? '/albums'
 
-  const onSubmit = async (values: LoginValues): Promise<void> => {
-    try {
-      await login(values)
-      void navigate(redirectTo, { replace: true })
-    } catch (error) {
-      applyApiError(error)
-    }
-  }
+  const onSubmit = (values: LoginValues): Promise<void> =>
+    // No toast: arriving at the screen you were headed for is the confirmation.
+    submit(login(values), {
+      onDone: () => {
+        void navigate(redirectTo, { replace: true })
+      },
+    })
 
   return (
     <AuthLayout

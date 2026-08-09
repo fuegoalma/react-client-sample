@@ -1,6 +1,6 @@
 import { FormAlert, FormField, FormModal, PasswordFields, fieldClass } from '@/components/ui'
 import { userCreateSchema, type UserCreateValues } from '@/forms'
-import { useApiForm, useNotifications } from '@/hooks'
+import { useApiForm } from '@/hooks'
 import { useCreateUserMutation } from '@/repositories'
 
 interface UserFormDialogProps {
@@ -22,12 +22,11 @@ export function UserFormDialog({ open, onClose }: UserFormDialogProps) {
 
 function CreateUserForm({ onClose }: Omit<UserFormDialogProps, 'open'>) {
   const [createUser, { isLoading }] = useCreateUserMutation()
-  const { reportSuccess } = useNotifications()
 
   const {
     register,
     handleSubmit,
-    applyApiError,
+    submit,
     formState: { errors },
   } = useApiForm(userCreateSchema, {
     first_name: '',
@@ -37,19 +36,12 @@ function CreateUserForm({ onClose }: Omit<UserFormDialogProps, 'open'>) {
     password_confirm: '',
   })
 
-  const onSubmit = async ({
-    password_confirm: _confirm,
-    ...values
-  }: UserCreateValues): Promise<void> => {
-    try {
-      // The confirmation is form state, not an attribute the API knows.
-      const user = await createUser(values).unwrap()
-      reportSuccess(`${user.first_name} ${user.last_name} was created with no roles.`)
-      onClose()
-    } catch (error) {
-      applyApiError(error)
-    }
-  }
+  const onSubmit = ({ password_confirm: _confirm, ...values }: UserCreateValues): Promise<void> =>
+    // The confirmation is form state, not an attribute the API knows.
+    submit(createUser(values).unwrap(), {
+      success: (user) => `${user.first_name} ${user.last_name} was created with no roles.`,
+      onDone: onClose,
+    })
 
   return (
     <FormModal

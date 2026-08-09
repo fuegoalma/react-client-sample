@@ -1,5 +1,5 @@
-import { screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { screen, waitFor } from '@testing-library/react'
+import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 
 import { FormAlert, FormField, SubmitButton, fieldClass } from '@/components'
@@ -113,4 +113,91 @@ describe('useApiForm', () => {
       'An unexpected error occurred. Please try again.',
     )
   })
+})
+
+/**
+ * A form whose request is handed straight to `submit`, which is the shape every
+ * form in the application had written out for itself: await, report, and route
+ * the failure onto the fields rather than into a toast.
+ */
+function SubmittingForm({
+  request,
+  success,
+  onDone,
+}: {
+  readonly request: () => Promise<{ title: string }>
+  readonly success?: string
+  readonly onDone?: (result: { title: string }) => void
+}) {
+  const {
+    register,
+    handleSubmit,
+    submit,
+    formState: { errors },
+  } = useApiForm(schema, { title: '' })
+
+  return (
+    <form
+      onSubmit={(event) =>
+        void handleSubmit(() =>
+          submit(request(), {
+            ...(success !== undefined && { success }),
+            ...(onDone !== undefined && { onDone }),
+          }),
+        )(event)
+      }
+      noValidate
+    >
+      <FormAlert error={errors.root} />
+      <FormField id="title" label="Title" error={errors.title}>
+        <input id="title" className={fieldClass(errors.title)} {...register('title')} />
+      </FormField>
+      <SubmitButton isBusy={false} label="Save" />
+    </form>
+  )
+}
+
+describe('useApiForm’s submit', () => {
+  it('reports the success and hands the result on', async () => {
+    const done = vi.fn()
+    const { user } = renderWithProviders(
+      <SubmittingForm
+        request={() => Promise.resolve({ title: 'Vacation' })}
+        success="Album saved."
+        onDone={done}
+      />,
+    )
+
+    await user.type(screen.getByLabelText('Title'), 'Vacation')
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(await screen.findByText('Album saved.')).toBeInTheDocument()
+    expect(done).toHaveBeenCalledWith({ title: 'Vacation' })
+  })
+
+  it('stays silent when the caller reports success by leaving the screen', async () => {
+    // Sign-in and registration navigate away; a toast on top of that would be
+    // announcing something the user can already see.
+    const done = vi.fn()
+    const { user } = renderWithProviders(
+      <SubmittingForm request={() => Promise.resolve({ title: 'Vacation' })} onDone={done} />,
+    )
+
+    await user.type(screen.getByLabelText('Title'), 'Vacation')
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => {
+      expect(done).toHaveBeenCalled()
+    })
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+  })
+
+  /*
+   * The failure path is deliberately not faked here. `ApiError` is a plain
+   * object by design, not an Error subclass, so a synthetic rejection has to
+   * fight both `only-throw-error` and `prefer-promise-reject-errors` — and the
+   * real forms already prove it against a real 422 from MSW, which is better
+   * evidence anyway: see the duplicate-email case in auth.test.tsx and the
+   * unrendered-field case in albums.test.tsx.
+   */
 })

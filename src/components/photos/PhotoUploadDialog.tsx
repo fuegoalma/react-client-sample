@@ -3,7 +3,7 @@ import { Controller } from 'react-hook-form'
 
 import { FormAlert, FormField, FormModal, fieldClass } from '@/components/ui'
 import { ALLOWED_IMAGE_EXTENSIONS, photoUploadSchema, type PhotoUploadValues } from '@/forms'
-import { useApiForm, useNotifications } from '@/hooks'
+import { useApiForm } from '@/hooks'
 import { useUploadPhotoMutation } from '@/repositories'
 
 interface PhotoUploadDialogProps {
@@ -29,14 +29,13 @@ export function PhotoUploadDialog({ open, albumId, onClose }: PhotoUploadDialogP
 
 function UploadForm({ albumId, onClose }: Omit<PhotoUploadDialogProps, 'open'>) {
   const [uploadPhoto, { isLoading }] = useUploadPhotoMutation()
-  const { reportSuccess } = useNotifications()
   const [preview, setPreview] = useState<string | null>(null)
 
   const {
     register,
     control,
     handleSubmit,
-    applyApiError,
+    submit,
     formState: { errors },
   } = useApiForm(photoUploadSchema, { title: '', file: undefined })
 
@@ -48,15 +47,11 @@ function UploadForm({ albumId, onClose }: Omit<PhotoUploadDialogProps, 'open'>) 
     }
   }, [preview])
 
-  const onSubmit = async (values: PhotoUploadValues): Promise<void> => {
-    try {
-      await uploadPhoto({ albumId, title: values.title, file: values.file }).unwrap()
-      reportSuccess(`“${values.title}” was uploaded.`)
-      onClose()
-    } catch (error) {
-      applyApiError(error)
-    }
-  }
+  const onSubmit = (values: PhotoUploadValues): Promise<void> =>
+    submit(uploadPhoto({ albumId, title: values.title, file: values.file }).unwrap(), {
+      success: (uploaded) => `“${uploaded.title}” was uploaded.`,
+      onDone: onClose,
+    })
 
   return (
     <FormModal

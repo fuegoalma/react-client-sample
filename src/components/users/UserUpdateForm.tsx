@@ -7,7 +7,7 @@ import {
 } from '@/components/ui'
 import { EMPTY_USER_UPDATE_VALUES, toUserPayload, userUpdateSchema } from '@/forms'
 import type { UserUpdateValues } from '@/forms'
-import { useApiForm, useNotifications } from '@/hooks'
+import { useApiForm } from '@/hooks'
 import { useUpdateUserMutation } from '@/repositories'
 
 interface UserUpdateFormProps {
@@ -37,14 +37,13 @@ export function UserUpdateForm({
   successMessage,
 }: UserUpdateFormProps) {
   const [updateUser, { isLoading: isSaving }] = useUpdateUserMutation()
-  const { reportSuccess } = useNotifications()
 
   const {
     register,
     handleSubmit,
     reset,
     watch,
-    applyApiError,
+    submit,
     formState: { errors, isDirty },
   } = useApiForm(userUpdateSchema, EMPTY_USER_UPDATE_VALUES)
 
@@ -58,15 +57,14 @@ export function UserUpdateForm({
     const body = toUserPayload(values)
     if (Object.keys(body).length === 0) return
 
-    try {
-      await updateUser({ id: userId, body }).unwrap()
-      reset(EMPTY_USER_UPDATE_VALUES)
-      reportSuccess(successMessage)
-    } catch (error) {
-      // A 409 means this account holds `role.manage` and may not be taken over;
-      // the API's message says so.
-      applyApiError(error)
-    }
+    // A 409 means this account holds `role.manage` and may not be taken over;
+    // the API's message says so, and `submit` puts it on the form.
+    await submit(updateUser({ id: userId, body }).unwrap(), {
+      success: successMessage,
+      onDone: () => {
+        reset(EMPTY_USER_UPDATE_VALUES)
+      },
+    })
   }
 
   return (

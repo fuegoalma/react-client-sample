@@ -13,7 +13,7 @@ import {
   type Crumb,
 } from '@/components'
 import { photoUpdateSchema, type PhotoUpdateValues } from '@/forms'
-import { useApiForm, useNotifications, usePermissions } from '@/hooks'
+import { useApiForm, usePermissions } from '@/hooks'
 import { useAlbumQuery, usePhotoQuery, useUpdatePhotoMutation } from '@/repositories'
 
 /**
@@ -36,7 +36,6 @@ export function PhotoDetailPage() {
   const { data: parentAlbum } = useAlbumQuery(album, { skip: Number.isNaN(album) })
   const [updatePhoto, { isLoading: isSaving }] = useUpdatePhotoMutation()
   const { photos: policy, albums: albumPolicy, ownsAlbum } = usePermissions()
-  const { reportSuccess } = useNotifications()
   const [confirmingDelete, setConfirmingDelete] = useState(false)
 
   const isOwn = ownsAlbum(album)
@@ -46,7 +45,7 @@ export function PhotoDetailPage() {
   const {
     register,
     handleSubmit,
-    applyApiError,
+    submit,
     formState: { errors },
   } = useApiForm(
     photoUpdateSchema,
@@ -64,14 +63,10 @@ export function PhotoDetailPage() {
     { label: photo?.title ?? '' },
   ]
 
-  const onSubmit = async (values: PhotoUpdateValues): Promise<void> => {
-    try {
-      await updatePhoto({ id, albumId: album, body: values }).unwrap()
-      reportSuccess('Photo updated.')
-    } catch (unknownError) {
-      applyApiError(unknownError)
-    }
-  }
+  const onSubmit = (values: PhotoUpdateValues): Promise<void> =>
+    submit(updatePhoto({ id, albumId: album, body: values }).unwrap(), {
+      success: 'Photo updated.',
+    })
 
   return (
     <QueryBoundary isLoading={isLoading} error={error}>

@@ -10,7 +10,7 @@ import {
 } from '@/components'
 import { PermissionPicker } from '@/components/roles/PermissionPicker'
 import { roleCreateSchema, withoutEmpty, type RoleCreateValues } from '@/forms'
-import { useApiForm, useNotifications, usePermissions, useToggleSelection } from '@/hooks'
+import { useApiForm, usePermissions, useToggleSelection } from '@/hooks'
 import {
   useCreateRoleMutation,
   usePermissionsQuery,
@@ -37,7 +37,6 @@ export function RoleEditorPage() {
   const [createRole, { isLoading: isCreating }] = useCreateRoleMutation()
   const [updateRole, { isLoading: isUpdating }] = useUpdateRoleMutation()
   const { roles: policy } = usePermissions()
-  const { reportSuccess } = useNotifications()
 
   // A system role may be re-composed but not renamed; until it has loaded there
   // is nothing to protect, so an unloaded role reads as renameable.
@@ -50,7 +49,7 @@ export function RoleEditorPage() {
   const {
     register,
     handleSubmit,
-    applyApiError,
+    submit,
     formState: { errors },
   } = useApiForm(
     roleCreateSchema,
@@ -60,35 +59,41 @@ export function RoleEditorPage() {
     role === undefined ? undefined : { name: role.name, description: role.description },
   )
 
-  const onSubmit = async (values: RoleCreateValues): Promise<void> => {
-    try {
-      if (isNew) {
-        const created = await createRole({
-          name: values.name,
-          ...withoutEmpty({ description: values.description }),
-          permissions: selected,
-        }).unwrap()
-        reportSuccess(`Role “${created.name}” was created.`)
-        void navigate(`/roles/${created.id}`, { replace: true })
-        return
-      }
+  /*
+   * Creating and saving are two requests with two outcomes, not one request
+   * with a flag: only a create names the new role and moves to its own address.
+   * Either failure is the same, though — 422 for an unknown permission name,
+   * 409 when the change would leave nobody able to manage roles — and `submit`
+   * puts both on the form.
+   */
+  const onSubmit = (values: RoleCreateValues): Promise<void> => {
+    const description = withoutEmpty({ description: values.description })
 
-      await updateRole({
+    if (isNew) {
+      return submit(
+        createRole({ name: values.name, ...description, permissions: selected }).unwrap(),
+        {
+          success: (created) => `Role “${created.name}” was created.`,
+          onDone: (created) => {
+            void navigate(`/roles/${created.id}`, { replace: true })
+          },
+        },
+      )
+    }
+
+    return submit(
+      updateRole({
         id,
         body: {
           // The same rule that locks the field also keeps the name out of the
           // request, so the two cannot disagree and 422.
           ...(canRename ? { name: values.name } : {}),
-          ...withoutEmpty({ description: values.description }),
+          ...description,
           permissions: selected,
         },
-      }).unwrap()
-      reportSuccess('Role updated.')
-    } catch (unknownError) {
-      // 422 for an unknown permission name, 409 when the change would leave
-      // nobody able to manage roles.
-      applyApiError(unknownError)
-    }
+      }).unwrap(),
+      { success: 'Role updated.' },
+    )
   }
 
   return (
