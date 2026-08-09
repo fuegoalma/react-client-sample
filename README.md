@@ -85,8 +85,10 @@ flowchart LR
   permanent delete beats a review flag ([ADR 4](docs/adr/0004-permissions-mirrored-client-side.md)).
 - **[`tests/contract/`](tests/contract/)** — DTO shapes, every URL the client
   issues, and each list's filters and sort whitelist, all checked against the
-  vendored `openapi.yaml`. `make sync-spec` refetches it; `make spec-verify` —
-  part of `make check` — proves the committed types are the ones it generates.
+  vendored `openapi.yaml` — checked against, not generated from
+  ([ADR 7](docs/adr/0007-openapi-as-a-checked-oracle.md)). `make spec-verify`
+  holds the committed types to that document, and a scheduled job refetches it
+  from the API so the snapshot cannot quietly go stale.
 - **[`tests/mocks/`](tests/mocks/)** — a small re-implementation of the API,
   not canned responses, with its permission logic deliberately re-derived rather
   than imported from `src/` ([ADR 5](docs/adr/0005-mock-api-as-independent-mirror.md)).

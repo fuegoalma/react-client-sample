@@ -1,0 +1,69 @@
+name: Spec drift
+
+# `tests/contract/openapi.yaml` is a snapshot of a document that lives in
+# another repository. Every contract gate reads that snapshot, so once the API
+# moves they all keep passing against a document nobody serves any more —
+# `make sync-spec` is the only thing that notices, and a person has to remember
+# to run it. This asks the API instead.
+on:
+  schedule:
+    # Daily: often enough that a breaking change is a day old at worst, rare
+    # enough that a quiet week costs nothing.
+    - cron: '0 5 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  refetch:
+    name: Refetch the spec and re-run the contract gates
+    runs-on: ubuntu-latest
+    # The API is not part of this repository. Point the variable at a reachable
+    # instance to enable the job; without it there is nothing to ask.
+    if: vars.API_SPEC_URL != ''
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Refetch the document
+        run: curl -fsS "${{ vars.API_SPEC_URL }}" -o tests/contract/openapi.yaml
+
+      # Reported separately from the gates below so the summary says whether
+      # the document moved at all, before saying what that broke.
+      - name: The document has not moved
+        id: diff
+        run: git diff --exit-code --stat tests/contract/openapi.yaml
+
+      - name: Regenerate the types
+        if: always() && steps.diff.outcome == 'failure'
+        run: npx openapi-typescript tests/contract/openapi.yaml -o tests/contract/schema.d.ts
+
+      # What the new document actually breaks: a DTO that no longer matches, a
+      # schema with nothing mirroring it, a URL the client issues that is gone,
+      # a filter or sort attribute that moved.
+      - name: Contract gates against the new document
+        if: always() && steps.diff.outcome == 'failure'
+        run: |
+          npm run typecheck
+          npm run test:contract
+
+      # The refreshed pair, ready to be committed once the client is caught up.
+      - name: Upload the refreshed spec and types
+        if: always() && steps.diff.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: refreshed-spec
+          path: |
+            tests/contract/openapi.yaml
+            tests/contract/schema.d.ts
+          retention-days: 14
