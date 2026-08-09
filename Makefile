@@ -11,7 +11,7 @@ PROD_API_URL    ?= http://localhost:8084
         build build-demo preview size storybook build-storybook screenshots \
         prod-build prod-run \
         test test-coverage test-unit test-functional test-contract test-one test-e2e e2e-install \
-        sync-spec \
+        sync-spec spec-verify \
         cs-check cs-fix typecheck check clean
 
 help:
@@ -38,6 +38,7 @@ help:
 	@echo "  test-functional      Run functional tests only"
 	@echo "  test-contract        Run the OpenAPI contract tests only"
 	@echo "  sync-spec            Refetch the OpenAPI document and regenerate its types"
+	@echo "  spec-verify          Check the committed types still match the committed spec"
 	@echo "  test-one file=<path> Run a single test file"
 	@echo "  test-e2e             Run the Playwright suite against the running stack (host)"
 	@echo "                       Set E2E_ADMIN_EMAIL in .env to include the RBAC screens"
@@ -129,6 +130,12 @@ sync-spec:
 	$(APP) npx openapi-typescript tests/contract/openapi.yaml -o tests/contract/schema.d.ts
 	@echo "→ spec and types refreshed; run 'make test-contract' to see what moved"
 
+# The half of `sync-spec` that needs no API: are the committed types the ones
+# this committed spec generates? Catches a yaml refreshed without its second
+# half, and a schema.d.ts edited by hand.
+spec-verify:
+	$(APP) npm run spec:verify
+
 test-contract:
 	$(APP) npm run test:contract
 
@@ -175,7 +182,7 @@ typecheck:
 # `build` earns its place next to `typecheck`: tsc in check-only mode never asks
 # Vite to resolve an import, an alias or an asset, so a bundle can break while
 # the types are perfectly fine.
-check: cs-check typecheck build size test-coverage
+check: cs-check spec-verify typecheck build size test-coverage
 
 clean:
 	rm -rf dist coverage playwright-report test-results node_modules/.tmp node_modules/.vite

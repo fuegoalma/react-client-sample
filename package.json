@@ -21,6 +21,7 @@
     "storybook": "storybook dev -p 6006",
     "build:storybook": "storybook build -o storybook-static",
     "typecheck": "tsc --build --force",
+    "spec:verify": "openapi-typescript tests/contract/openapi.yaml -o tests/contract/schema.d.ts --check",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "stylelint": "stylelint \"src/**/*.scss\"",

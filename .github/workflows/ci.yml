@@ -51,6 +51,14 @@ jobs:
       - name: Code style (Prettier · ESLint · Stylelint)
         run: npm run cs-check
 
+      # The contract suite checks the client against a *committed* copy of the
+      # API's spec, so that copy and its generated types have to agree. A yaml
+      # refreshed without regenerating — or a schema.d.ts touched by hand —
+      # would otherwise make every downstream assertion answer the wrong
+      # document, and quietly pass.
+      - name: Generated types match the vendored spec
+        run: npm run spec:verify
+
       - name: Static analysis (TypeScript)
         run: npm run typecheck
 

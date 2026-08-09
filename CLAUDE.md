@@ -79,13 +79,14 @@ make cs-fix        # reformat the whole codebase in one command
 # Static analysis (TypeScript in check-only mode)
 make typecheck
 make size          # the built bundle against its budget
-make check         # cs-check + typecheck + build + size + test-coverage — what CI runs
+make check         # cs-check + spec-verify + typecheck + build + size + test-coverage — what CI runs
 make clean         # remove build output and caches
 
 # The UI kit, the API contract and the README's screenshots
 make storybook       # the component workshop on :6006 (host)
 make build-storybook
 make sync-spec       # refetch openapi.yaml from a running API, regenerate its types
+make spec-verify     # the offline half: do the committed types match the committed spec?
 make screenshots     # regenerate the README screenshots from the running stack (host)
 ```
 
