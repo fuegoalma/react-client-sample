@@ -146,9 +146,12 @@ describe('Deleting a photo', () => {
       within(await screen.findByRole('dialog')).getByRole('button', { name: 'Delete' }),
     )
 
-    // Still in flight — the mock has not replied yet.
+    await waitFor(() => {
+      expect(screen.queryByRole('heading', { name: 'Beach sunset' })).not.toBeInTheDocument()
+    })
+    // The tile is already gone while the mock is still sitting on the request:
+    // that, not the render that removed it, is what optimism means here.
     expect(db.photos.some((photo) => photo.id === 100)).toBe(true)
-    expect(screen.queryByRole('heading', { name: 'Beach sunset' })).not.toBeInTheDocument()
   })
 
   it('puts the tile back when the server refuses', async () => {

@@ -5,18 +5,12 @@ import { AlbumDeleteButton } from '@/components/albums/AlbumDeleteButton'
 import { AlbumDeleteDialog } from '@/components/albums/AlbumDeleteDialog'
 import { AlbumFormDialog } from '@/components/albums/AlbumFormDialog'
 import { PhotoCard } from '@/components/photos/PhotoCard'
+import { PhotoDeleteDialog } from '@/components/photos/PhotoDeleteDialog'
 import { PhotoUploadDialog } from '@/components/photos/PhotoUploadDialog'
-import {
-  ConfirmDialog,
-  FilterBar,
-  PageHeader,
-  PaginationBar,
-  QueryBoundary,
-  type Crumb,
-} from '@/components'
+import { FilterBar, PageHeader, PaginationBar, QueryBoundary, type Crumb } from '@/components'
 import { photoListSpec } from '@/forms'
-import { useListQuery, useMutationAction, usePermissions } from '@/hooks'
-import { useAlbumPhotosQuery, useAlbumQuery, useDeletePhotoMutation } from '@/repositories'
+import { useListQuery, usePermissions } from '@/hooks'
+import { useAlbumPhotosQuery, useAlbumQuery } from '@/repositories'
 import type { Photo } from '@/types'
 
 /**
@@ -41,8 +35,6 @@ export function AlbumDetailPage() {
   )
 
   const { albums: policy, photos: photoPolicy, ownsAlbum } = usePermissions()
-  const { run } = useMutationAction()
-  const [deletePhoto, { isLoading: isDeletingPhoto }] = useDeletePhotoMutation()
 
   const [editing, setEditing] = useState(false)
   const [deletingAlbum, setDeletingAlbum] = useState(false)
@@ -65,15 +57,6 @@ export function AlbumDetailPage() {
    */
   const albumsCrumb = policy.albumsCrumb(isOwn)
   const breadcrumbs: readonly Crumb[] = [albumsCrumb, { label: album?.title ?? '' }]
-
-  const removePhoto = (photo: Photo): Promise<void> =>
-    run(deletePhoto({ id: photo.id, albumId: id }).unwrap(), {
-      success: `“${photo.title}” was deleted.`,
-      failure: 'The photo could not be deleted.',
-      onDone: () => {
-        setDeletingPhoto(null)
-      },
-    })
 
   return (
     <>
@@ -217,23 +200,13 @@ export function AlbumDetailPage() {
               }}
             />
 
-            <ConfirmDialog
-              open={deletingPhoto !== null}
-              title="Delete photo"
-              confirmLabel="Delete"
-              isBusy={isDeletingPhoto}
-              onConfirm={() => {
-                if (deletingPhoto !== null) void removePhoto(deletingPhoto)
-              }}
-              onCancel={() => {
+            <PhotoDeleteDialog
+              photo={deletingPhoto}
+              albumId={id}
+              onClose={() => {
                 setDeletingPhoto(null)
               }}
-            >
-              <p className="mb-0">
-                <strong>{deletingPhoto?.title}</strong> and its stored file will be removed. This
-                cannot be undone.
-              </p>
-            </ConfirmDialog>
+            />
           </>
         )}
       </QueryBoundary>

@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 
+import { PhotoDeleteDialog } from '@/components/photos/PhotoDeleteDialog'
 import { PhotoFrame } from '@/components/photos/PhotoFrame'
 import {
-  ConfirmDialog,
   FormAlert,
   FormField,
   PageHeader,
@@ -13,13 +13,8 @@ import {
   type Crumb,
 } from '@/components'
 import { photoUpdateSchema, type PhotoUpdateValues } from '@/forms'
-import { useApiForm, useMutationAction, useNotifications, usePermissions } from '@/hooks'
-import {
-  useAlbumQuery,
-  useDeletePhotoMutation,
-  usePhotoQuery,
-  useUpdatePhotoMutation,
-} from '@/repositories'
+import { useApiForm, useNotifications, usePermissions } from '@/hooks'
+import { useAlbumQuery, usePhotoQuery, useUpdatePhotoMutation } from '@/repositories'
 
 /**
  * A single photo.
@@ -40,10 +35,8 @@ export function PhotoDetailPage() {
   // route to this screen.
   const { data: parentAlbum } = useAlbumQuery(album, { skip: Number.isNaN(album) })
   const [updatePhoto, { isLoading: isSaving }] = useUpdatePhotoMutation()
-  const [deletePhoto, { isLoading: isDeleting }] = useDeletePhotoMutation()
   const { photos: policy, albums: albumPolicy, ownsAlbum } = usePermissions()
   const { reportSuccess } = useNotifications()
-  const { run } = useMutationAction()
   const [confirmingDelete, setConfirmingDelete] = useState(false)
 
   const isOwn = ownsAlbum(album)
@@ -79,15 +72,6 @@ export function PhotoDetailPage() {
       applyApiError(unknownError)
     }
   }
-
-  const remove = (): Promise<void> =>
-    run(deletePhoto({ id, albumId: album }).unwrap(), {
-      success: 'Photo deleted.',
-      failure: 'The photo could not be deleted.',
-      onDone: () => {
-        void navigate(`/albums/${album}`, { replace: true })
-      },
-    })
 
   return (
     <QueryBoundary isLoading={isLoading} error={error}>
@@ -166,21 +150,17 @@ export function PhotoDetailPage() {
             </div>
           </div>
 
-          <ConfirmDialog
-            open={confirmingDelete}
-            title="Delete photo"
-            confirmLabel="Delete"
-            isBusy={isDeleting}
-            onConfirm={() => void remove()}
-            onCancel={() => {
+          <PhotoDeleteDialog
+            photo={confirmingDelete ? photo : null}
+            albumId={album}
+            onClose={() => {
               setConfirmingDelete(false)
             }}
-          >
-            <p className="mb-0">
-              <strong>{photo.title}</strong> and its stored file will be removed. This cannot be
-              undone.
-            </p>
-          </ConfirmDialog>
+            onDeleted={() => {
+              // The photo is gone, so its own screen cannot stay on display.
+              void navigate(`/albums/${album}`, { replace: true })
+            }}
+          />
         </>
       )}
     </QueryBoundary>
