@@ -96,7 +96,7 @@ flowchart LR
   one modal shell, one table, one loading/failed/empty triad, each shown on its
   own in both themes with axe running per component.
 
-**451 Vitest tests at 100% coverage** — lines, branches, functions and
+**469 Vitest tests at 100% coverage** — lines, branches, functions and
 statements — plus 21 Playwright specs. Coverage is a build gate, not a report:
 an uncovered line fails the commit that introduced it.
 
@@ -116,9 +116,10 @@ The client is served at <http://localhost:8092>. `make help` lists every target.
 
 - **[Handbook](docs/handbook.md)** — setup, commands, architecture, testing
   conventions, the pipeline, and troubleshooting.
-- **[Architecture decision records](docs/adr/)** — six decisions with their
+- **[Architecture decision records](docs/adr/)** — seven decisions with their
   trade-offs: token storage, single-flight refresh, where the service layer
-  stops, the permission mirror, the mock API, and runtime configuration.
+  stops, the permission mirror, the mock API, runtime configuration, and the
+  OpenAPI document as an oracle.
 
 ## License
 

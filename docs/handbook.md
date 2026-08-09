@@ -345,18 +345,23 @@ autofill: an account's password only ever changes because someone asked for it.
 ## The contract suite
 
 `tests/contract/` checks the client against a **vendored copy of the API's own
-OpenAPI document** rather than against a hand-written transcription of it. Three
-things are asserted: the DTO field names and types in
-[`src/types/`](../src/types/), through types generated from the document and
-checked by `tsc`; every URL the client issues, read out of the repository and
-transport sources; and each `ListSpec`'s filters and sortable whitelist.
+OpenAPI document** rather than against a hand-written transcription of it — see
+[ADR 7](adr/0007-openapi-as-a-checked-oracle.md) for why the document is checked
+against rather than generated from. Four things are asserted: the DTO field
+names and types in [`src/types/`](../src/types/), through types generated from
+the document and checked by `tsc`, with no schema left unaccounted for; every
+URL the client issues, read out of the repository and transport sources; each
+`ListSpec`'s filters and sortable whitelist; and each write form's fields and
+length limits against the request body it is transcribed from.
 
 ```bash
 make sync-spec       # refetch openapi.yaml from a running API, regenerate types
+make spec-verify     # the offline half: do the committed types match that copy?
 make test-contract   # see what moved
 ```
 
-The copy is committed because CI has no API to ask. Two deliberate asymmetries
+The copy is committed because CI has no API to ask; `spec-drift.yml` refetches
+it on a schedule so the snapshot cannot quietly go stale. Two deliberate asymmetries
 are encoded in the tests rather than left implicit: `POST /auth/refresh` is
 issued by the transport, not a repository, and `/albums` offers a `user_id`
 filter the client does not — an album list response carries no owner, so there
@@ -396,7 +401,7 @@ cannot drift from what the suite proves.
 
 ## Testing
 
-Four suites. **451 Vitest tests** across 44 files (unit, contract and
+Four suites. **469 Vitest tests** across 46 files (unit, contract and
 functional) at **100% coverage — lines, branches, functions and statements** —
 plus **21 Playwright specs**.
 
