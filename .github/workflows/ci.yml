@@ -24,7 +24,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up Node 24
         uses: actions/setup-node@v4
@@ -100,7 +100,7 @@ jobs:
       E2E_BASE_URL: http://localhost:4173
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up Node 24
         uses: actions/setup-node@v4
