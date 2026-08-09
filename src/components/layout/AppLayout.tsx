@@ -59,7 +59,7 @@ export function AppLayout() {
       <footer className="appFooter">
         <div className="appMain py-0 d-flex justify-content-between align-items-center">
           <HealthBadge />
-          <span>Photos REST API client</span>
+          <span>Sample client for the Photos REST API</span>
         </div>
       </footer>
     </div>

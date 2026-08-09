@@ -1,4 +1,4 @@
-# Photos REST API — React client
+# React Client Sample
 
 [![CI](https://github.com/fuegoalma/react-client-sample/actions/workflows/ci.yml/badge.svg)](https://github.com/fuegoalma/react-client-sample/actions/workflows/ci.yml)
 [![CD](https://github.com/fuegoalma/react-client-sample/actions/workflows/cd.yml/badge.svg)](https://github.com/fuegoalma/react-client-sample/actions/workflows/cd.yml)

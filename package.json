@@ -3,7 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "description": "React client for the Photos REST API",
+  "description": "React Client Sample",
   "license": "MIT",
   "repository": {
     "type": "git",
