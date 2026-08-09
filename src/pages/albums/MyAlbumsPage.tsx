@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 
 import { AlbumDeleteDialog } from '@/components/albums/AlbumDeleteDialog'
 import { AlbumFormDialog } from '@/components/albums/AlbumFormDialog'
+import { ALBUM_BASE_COLUMNS } from '@/components/albums/albumColumns'
 import { ListScreen, PageHeader, type Column } from '@/components'
 import { albumListSpec } from '@/forms'
 import { useListQuery } from '@/hooks'
@@ -24,19 +25,7 @@ export function MyAlbumsPage() {
   const [deleting, setDeleting] = useState<Album | null>(null)
 
   const columns: readonly Column<Album>[] = [
-    {
-      key: 'title',
-      header: 'Title',
-      sortAttribute: 'title',
-      render: (album) => <Link to={`/albums/${album.id}`}>{album.title}</Link>,
-    },
-    {
-      key: 'id',
-      header: 'ID',
-      sortAttribute: 'id',
-      className: 'text-secondary',
-      render: (album) => album.id,
-    },
+    ...ALBUM_BASE_COLUMNS,
     {
       key: 'actions',
       header: <span className="visually-hidden">Actions</span>,
