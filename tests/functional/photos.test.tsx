@@ -29,6 +29,23 @@ describe('Album detail', () => {
     expect(await screen.findByRole('heading', { name: 'Beach sunset' })).toBeInTheDocument()
   })
 
+  it('keeps the page’s shape while the photos load, as every other list does', async () => {
+    // The grid is not a DataTable, so it wires up its own QueryBoundary — but
+    // it is still rows of content arriving, and it waited behind a centred
+    // spinner while every list screen waited behind a skeleton.
+    server.use(
+      http.get(`${API}/albums/:id/photos`, async () => {
+        await delay(150)
+        return new Response(null, { status: 204 })
+      }),
+    )
+    renderWithProviders(<AlbumDetailPage />, { route: OWN_ALBUM, path: '/albums/:albumId' })
+
+    await screen.findByRole('heading', { name: 'Vacation 2025' })
+    expect(document.querySelector('.skeleton')).toBeInTheDocument()
+    expect(document.querySelector('.spinner-border')).not.toBeInTheDocument()
+  })
+
   it('renames an album the caller owns', async () => {
     const { user } = renderWithProviders(<AlbumDetailPage />, {
       route: OWN_ALBUM,

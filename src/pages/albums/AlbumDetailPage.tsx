@@ -59,157 +59,159 @@ export function AlbumDetailPage() {
   const breadcrumbs: readonly Crumb[] = [albumsCrumb, { label: album?.title ?? '' }]
 
   return (
-    <>
-      <QueryBoundary isLoading={isLoading} error={error}>
-        {album !== undefined && (
-          <>
-            <PageHeader
-              breadcrumbs={breadcrumbs}
-              title={album.title}
-              subtitle={
-                <>
-                  Owned by {album.first_name} {album.last_name}
-                  {album.is_deleted && (
-                    <span className="badge text-bg-warning ms-2">Flagged for review</span>
-                  )}
-                  {album.delete_reason !== null && (
-                    <span className="ms-2">Reason: {album.delete_reason}</span>
-                  )}
-                </>
-              }
-              actions={
-                <>
-                  {/* No link when the caller has no list to go back to — one
-                      that answers 403 is worse than none, the same rule the
-                      trail applies to the crumb itself. */}
-                  {albumsCrumb.to !== undefined && (
-                    <Link className="btn btn-sm btn-outline-secondary" to={albumsCrumb.to}>
-                      Back
-                    </Link>
-                  )}
-                  {canUpdate && (
-                    <button
-                      type="button"
-                      className="btn btn-sm btn-outline-secondary"
-                      onClick={() => {
-                        setEditing(true)
-                      }}
-                    >
-                      Rename
-                    </button>
-                  )}
-                  {canUploadPhoto && (
-                    <button
-                      type="button"
-                      className="btn btn-sm btn-primary"
-                      onClick={() => {
-                        setUploading(true)
-                      }}
-                    >
-                      <i className="bi bi-upload me-1" aria-hidden="true" />
-                      Upload photo
-                    </button>
-                  )}
-                  {deleteMode !== null && (
-                    <AlbumDeleteButton
-                      mode={deleteMode}
-                      noun="album"
-                      onClick={() => {
-                        setDeletingAlbum(true)
-                      }}
+    <QueryBoundary isLoading={isLoading} error={error}>
+      {album !== undefined && (
+        <>
+          <PageHeader
+            breadcrumbs={breadcrumbs}
+            title={album.title}
+            subtitle={
+              <>
+                Owned by {album.first_name} {album.last_name}
+                {album.is_deleted && (
+                  <span className="badge text-bg-warning ms-2">Flagged for review</span>
+                )}
+                {album.delete_reason !== null && (
+                  <span className="ms-2">Reason: {album.delete_reason}</span>
+                )}
+              </>
+            }
+            actions={
+              <>
+                {/* No link when the caller has no list to go back to — one that
+                    answers 403 is worse than none, the same rule the trail
+                    applies to the crumb itself. */}
+                {albumsCrumb.to !== undefined && (
+                  <Link className="btn btn-sm btn-outline-secondary" to={albumsCrumb.to}>
+                    Back
+                  </Link>
+                )}
+                {canUpdate && (
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-outline-secondary"
+                    onClick={() => {
+                      setEditing(true)
+                    }}
+                  >
+                    Rename
+                  </button>
+                )}
+                {canUploadPhoto && (
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-primary"
+                    onClick={() => {
+                      setUploading(true)
+                    }}
+                  >
+                    <i className="bi bi-upload me-1" aria-hidden="true" />
+                    Upload photo
+                  </button>
+                )}
+                {deleteMode !== null && (
+                  <AlbumDeleteButton
+                    mode={deleteMode}
+                    noun="album"
+                    onClick={() => {
+                      setDeletingAlbum(true)
+                    }}
+                  />
+                )}
+              </>
+            }
+          />
+
+          <FilterBar
+            filters={photoList.filterDefinitions}
+            values={photoList.filters}
+            onApply={photoList.applyFilters}
+            onReset={photoList.reset}
+            isFiltered={photoList.isFiltered}
+          />
+
+          <QueryBoundary
+            isLoading={loadingPhotos}
+            // Rows of content are coming, so the page keeps its shape rather
+            // than collapsing to a centred spinner — the same wait every list
+            // screen shows through ListScreen.
+            pending="skeleton"
+            isEmpty={photos?.items.length === 0}
+            emptyMessage={
+              photoList.isFiltered
+                ? 'No photos match this filter.'
+                : canUploadPhoto
+                  ? 'No photos yet — upload the first one.'
+                  : 'This album has no photos.'
+            }
+          >
+            {photos !== undefined && (
+              <>
+                <div className="photoGrid">
+                  {photos.items.map((photo) => (
+                    <PhotoCard
+                      key={photo.id}
+                      photo={photo}
+                      albumId={id}
+                      canEdit={canEditPhoto}
+                      canDelete={canDeletePhoto}
+                      onDelete={setDeletingPhoto}
                     />
-                  )}
-                </>
-              }
-            />
+                  ))}
+                </div>
 
-            <FilterBar
-              filters={photoList.filterDefinitions}
-              values={photoList.filters}
-              onApply={photoList.applyFilters}
-              onReset={photoList.reset}
-              isFiltered={photoList.isFiltered}
-            />
-
-            <QueryBoundary
-              isLoading={loadingPhotos}
-              isEmpty={photos?.items.length === 0}
-              emptyMessage={
-                photoList.isFiltered
-                  ? 'No photos match this filter.'
-                  : canUploadPhoto
-                    ? 'No photos yet — upload the first one.'
-                    : 'This album has no photos.'
-              }
-            >
-              {photos !== undefined && (
-                <>
-                  <div className="photoGrid">
-                    {photos.items.map((photo) => (
-                      <PhotoCard
-                        key={photo.id}
-                        photo={photo}
-                        albumId={id}
-                        canEdit={canEditPhoto}
-                        canDelete={canDeletePhoto}
-                        onDelete={setDeletingPhoto}
-                      />
-                    ))}
+                {photos.pagination.last_page > 1 && (
+                  <div className="appCard mt-3">
+                    <PaginationBar
+                      pagination={photos.pagination}
+                      onPageChange={photoList.setPage}
+                    />
                   </div>
+                )}
+              </>
+            )}
+          </QueryBoundary>
 
-                  {photos.pagination.last_page > 1 && (
-                    <div className="appCard mt-3">
-                      <PaginationBar
-                        pagination={photos.pagination}
-                        onPageChange={photoList.setPage}
-                      />
-                    </div>
-                  )}
-                </>
-              )}
-            </QueryBoundary>
+          <AlbumFormDialog
+            open={editing}
+            album={album}
+            onClose={() => {
+              setEditing(false)
+            }}
+          />
 
-            <AlbumFormDialog
-              open={editing}
-              album={album}
-              onClose={() => {
-                setEditing(false)
-              }}
-            />
+          <PhotoUploadDialog
+            open={uploading}
+            albumId={id}
+            onClose={() => {
+              setUploading(false)
+            }}
+          />
 
-            <PhotoUploadDialog
-              open={uploading}
-              albumId={id}
-              onClose={() => {
-                setUploading(false)
-              }}
-            />
+          <AlbumDeleteDialog
+            album={deletingAlbum ? album : null}
+            mode={deleteMode ?? 'permanent'}
+            onClose={() => {
+              setDeletingAlbum(false)
+            }}
+            onDeleted={() => {
+              // The album is gone, so this screen cannot stay — back to the
+              // list the caller came from. "My albums" is the fallback rather
+              // than a 403 risk: it needs no permission at all, so it is
+              // reachable even by a caller who may not list anything else.
+              void navigate(albumsCrumb.to ?? '/albums', { replace: true })
+            }}
+          />
 
-            <AlbumDeleteDialog
-              album={deletingAlbum ? album : null}
-              mode={deleteMode ?? 'permanent'}
-              onClose={() => {
-                setDeletingAlbum(false)
-              }}
-              onDeleted={() => {
-                // The album is gone, so this screen cannot stay — back to the
-                // list the caller came from. "My albums" is the fallback rather
-                // than a 403 risk: it needs no permission at all, so it is
-                // reachable even by a caller who may not list anything else.
-                void navigate(albumsCrumb.to ?? '/albums', { replace: true })
-              }}
-            />
-
-            <PhotoDeleteDialog
-              photo={deletingPhoto}
-              albumId={id}
-              onClose={() => {
-                setDeletingPhoto(null)
-              }}
-            />
-          </>
-        )}
-      </QueryBoundary>
-    </>
+          <PhotoDeleteDialog
+            photo={deletingPhoto}
+            albumId={id}
+            onClose={() => {
+              setDeletingPhoto(null)
+            }}
+          />
+        </>
+      )}
+    </QueryBoundary>
   )
 }
