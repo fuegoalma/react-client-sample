@@ -3,7 +3,7 @@ services:
     build:
       context: .
       target: dev
-    image: photos-client:dev
+    image: react-client-sample:dev
     env_file:
       - .env
     ports:

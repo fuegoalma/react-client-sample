@@ -3,7 +3,7 @@ APP := $(DC) exec -T client
 
 # The deployable artifact, built and run straight from the Dockerfile's prod
 # stage — the same image the CD pipeline produces.
-PROD_IMAGE      := photos-react-client
+PROD_IMAGE      := react-client-sample
 PROD_PORT       ?= 8092
 PROD_API_URL    ?= http://localhost:8084
 

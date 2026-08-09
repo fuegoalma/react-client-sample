@@ -39,13 +39,13 @@ jobs:
           target: prod
           push: false
           load: true
-          tags: photos-react-client:${{ github.event.workflow_run.head_sha }}
+          tags: react-client-sample:${{ github.event.workflow_run.head_sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
       - name: Smoke-test the image
         run: |
-          IMAGE=photos-react-client:${{ github.event.workflow_run.head_sha }}
+          IMAGE=react-client-sample:${{ github.event.workflow_run.head_sha }}
           docker run -d --rm --name client-smoke -p 8092:80 \
             -e VITE_API_BASE_URL=http://api.example.test "$IMAGE"
 

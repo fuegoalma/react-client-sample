@@ -168,7 +168,7 @@ make prod-build                                    # the deployable image
 make prod-run PROD_API_URL=https://api.example.com # pointed at any host
 ```
 
-`prod-run` is `docker run --rm -p 8092:80 -e VITE_API_BASE_URL=… photos-react-client`
+`prod-run` is `docker run --rm -p 8092:80 -e VITE_API_BASE_URL=… react-client-sample`
 with the defaults filled in — the API URL is an environment variable of the
 _container_, never a build argument.
 
