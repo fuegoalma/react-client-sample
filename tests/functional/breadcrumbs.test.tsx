@@ -47,6 +47,34 @@ describe('Breadcrumbs', () => {
     expect(within(nav).queryByRole('link')).not.toBeInTheDocument()
   })
 
+  /*
+   * The Back button sits beside the trail and answers the same question, so it
+   * has to give the same answer. It once pointed at "/albums" unconditionally,
+   * which sent a moderator viewing someone else's album to their own list.
+   */
+  it('sends the Back button where the trail points, on an owned album', async () => {
+    renderWithProviders(<AlbumDetailPage />, { route: '/albums/10', path: '/albums/:albumId' })
+
+    expect(await screen.findByRole('link', { name: 'Back' })).toHaveAttribute('href', '/albums')
+  })
+
+  it('sends the Back button where the trail points, on someone else’s album', async () => {
+    grantRole('moderator')
+    renderWithProviders(<AlbumDetailPage />, { route: '/albums/11', path: '/albums/:albumId' })
+
+    expect(await screen.findByRole('link', { name: 'Back' })).toHaveAttribute('href', '/all-albums')
+  })
+
+  it('offers no Back button when the trail itself has nowhere to go', async () => {
+    db.callerPermissions = ['album.view.any', 'photo.view.any']
+    renderWithProviders(<AlbumDetailPage />, { route: '/albums/11', path: '/albums/:albumId' })
+
+    // Waits for the screen, so the absence below is a real answer rather than
+    // an assertion made before anything rendered.
+    expect(await trail()).toEqual(['Albums', 'Conference talks'])
+    expect(screen.queryByRole('link', { name: 'Back' })).not.toBeInTheDocument()
+  })
+
   it('shows a photo three levels deep, naming its album', async () => {
     renderWithProviders(<PhotoDetailPage />, {
       route: '/albums/10/photos/100',

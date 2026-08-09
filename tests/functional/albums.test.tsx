@@ -2,6 +2,7 @@ import { screen, waitFor, within } from '@testing-library/react'
 import { http } from 'msw'
 import { describe, expect, it } from 'vitest'
 
+import { AppRoutes } from '@/app/router'
 import { AllAlbumsPage } from '@/pages/albums/AllAlbumsPage'
 import { MyAlbumsPage } from '@/pages/albums/MyAlbumsPage'
 
@@ -247,6 +248,35 @@ describe('All albums', () => {
 
     expect(await screen.findByRole('link', { name: 'Conference talks' })).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Vacation 2025' })).not.toBeInTheDocument()
+  })
+
+  /*
+   * A deleted album cannot leave its own screen on display, so the detail page
+   * navigates away — to the list the caller actually came from. The real route
+   * table is mounted here, so the assertion is the screen that ends up on
+   * display rather than a spy on the router.
+   */
+  it('returns to the all-albums screen after deleting someone else’s album', async () => {
+    grantRole('admin')
+    const { user } = renderWithProviders(<AppRoutes />, { route: '/albums/11' })
+
+    await user.click(await screen.findByRole('button', { name: 'Delete album' }))
+    await user.click(screen.getByRole('button', { name: 'Delete permanently' }))
+
+    expect(await screen.findByRole('heading', { name: 'All albums' })).toBeInTheDocument()
+  })
+
+  it('returns to the caller’s own albums when they may delete but not list', async () => {
+    // A custom role of album.delete.any without album.index.any: there is no
+    // all-albums screen to return to, and "My albums" needs no permission at
+    // all, so it is the one list every caller can always be sent back to.
+    db.callerPermissions = ['album.view.any', 'album.delete.any', 'photo.view.any']
+    const { user } = renderWithProviders(<AppRoutes />, { route: '/albums/11' })
+
+    await user.click(await screen.findByRole('button', { name: 'Delete album' }))
+    await user.click(screen.getByRole('button', { name: 'Delete permanently' }))
+
+    expect(await screen.findByRole('heading', { name: 'My albums' })).toBeInTheDocument()
   })
 
   it('refuses the screen to a caller without album.index.any', async () => {

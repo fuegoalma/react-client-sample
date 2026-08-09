@@ -56,7 +56,15 @@ export function AlbumDetailPage() {
   const canEditPhoto = photoPolicy.canUpdate(isOwn)
   const canDeletePhoto = photoPolicy.canDelete(isOwn)
 
-  const breadcrumbs: readonly Crumb[] = [policy.albumsCrumb(isOwn), { label: album?.title ?? '' }]
+  /*
+   * Where this album's parent list is, asked once and used everywhere it is
+   * needed: the trail, the Back button beside it, and where a delete returns to.
+   * Spelling "/albums" into any of them re-derives the rule the policy owns —
+   * and got it wrong, sending a moderator viewing someone else's album to their
+   * own list.
+   */
+  const albumsCrumb = policy.albumsCrumb(isOwn)
+  const breadcrumbs: readonly Crumb[] = [albumsCrumb, { label: album?.title ?? '' }]
 
   const removePhoto = (photo: Photo): Promise<void> =>
     run(deletePhoto({ id: photo.id, albumId: id }).unwrap(), {
@@ -88,9 +96,14 @@ export function AlbumDetailPage() {
               }
               actions={
                 <>
-                  <Link className="btn btn-sm btn-outline-secondary" to="/albums">
-                    Back
-                  </Link>
+                  {/* No link when the caller has no list to go back to — one
+                      that answers 403 is worse than none, the same rule the
+                      trail applies to the crumb itself. */}
+                  {albumsCrumb.to !== undefined && (
+                    <Link className="btn btn-sm btn-outline-secondary" to={albumsCrumb.to}>
+                      Back
+                    </Link>
+                  )}
                   {canUpdate && (
                     <button
                       type="button"
@@ -196,7 +209,11 @@ export function AlbumDetailPage() {
                 setDeletingAlbum(false)
               }}
               onDeleted={() => {
-                void navigate('/albums', { replace: true })
+                // The album is gone, so this screen cannot stay — back to the
+                // list the caller came from. "My albums" is the fallback rather
+                // than a 403 risk: it needs no permission at all, so it is
+                // reachable even by a caller who may not list anything else.
+                void navigate(albumsCrumb.to ?? '/albums', { replace: true })
               }}
             />
 
