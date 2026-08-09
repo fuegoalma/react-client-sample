@@ -90,7 +90,7 @@ describe('The account menu', () => {
     await user.click(toggle)
     expect(toggle).toHaveAttribute('aria-expanded', 'true')
 
-    await user.click(screen.getByRole('link', { name: 'Photos Client' }))
+    await user.click(screen.getByRole('link', { name: 'React Client Sample' }))
 
     expect(toggle).toHaveAttribute('aria-expanded', 'false')
     expect(toggle).toHaveClass('btn-outline-secondary')

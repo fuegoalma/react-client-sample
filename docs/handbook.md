@@ -53,7 +53,7 @@ make init
 
 | Variable             | Default                 | What it does                                                                                                              |
 | -------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `VITE_APP_NAME`      | `Photos Client`         | Product name in the navbar and browser tab                                                                                |
+| `VITE_APP_NAME`      | `React Client Sample`   | Product name in the navbar and browser tab                                                                                |
 | `VITE_API_BASE_URL`  | `http://localhost:8084` | The API the client calls. Resolved **by the browser**, so it stays `localhost` even though the client runs in a container |
 | `CLIENT_PORT`        | `8092`                  | Host port the dev server is published on (8084/8085 belong to the API stack)                                              |
 | `PREVIEW_PORT`       | `8093`                  | Host port `make preview` serves the built bundle on                                                                       |

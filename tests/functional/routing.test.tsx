@@ -31,7 +31,7 @@ describe('The route table', () => {
 
     expect(await screen.findByRole('heading', { name: 'My albums' })).toBeInTheDocument()
     // The shell: navigation above, the API's liveness in the footer below.
-    expect(screen.getByRole('link', { name: 'Photos Client' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'React Client Sample' })).toBeInTheDocument()
     expect(screen.getByText('Photos REST API client')).toBeInTheDocument()
     // The badge starts as "Checking API…" and settles once the probe answers.
     expect(await screen.findByRole('link', { name: 'API healthy' })).toBeInTheDocument()

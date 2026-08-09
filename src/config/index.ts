@@ -13,7 +13,7 @@ export interface AppConfig {
 
 const DEFAULTS: AppConfig = {
   apiBaseUrl: 'http://localhost:8084',
-  appName: 'Photos Client',
+  appName: 'React Client Sample',
 }
 
 function runtime(): AppRuntimeConfig {

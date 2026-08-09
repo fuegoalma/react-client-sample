@@ -9,7 +9,7 @@ API_URL="${VITE_API_BASE_URL:-http://localhost:8084}"
 cat > /usr/local/apache2/htdocs/env.js <<EOF
 window.__APP_CONFIG__ = {
   apiBaseUrl: "${API_URL}",
-  appName: "${VITE_APP_NAME:-Photos Client}"
+  appName: "${VITE_APP_NAME:-React Client Sample}"
 };
 EOF
 

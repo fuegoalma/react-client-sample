@@ -67,7 +67,7 @@ RUN find /usr/local/apache2/htdocs -name '*.map' -delete
 # The API URL is injected into env.js at container start, not baked at build,
 # so the same image runs against any environment.
 ENV VITE_API_BASE_URL=http://localhost:8084 \
-    VITE_APP_NAME="Photos Client"
+    VITE_APP_NAME="React Client Sample"
 
 EXPOSE 80
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
