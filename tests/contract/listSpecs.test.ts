@@ -53,7 +53,7 @@ const NOT_OFFERED: Readonly<Record<string, readonly string[]>> = {
 }
 
 function filterNames(path: string): string[] {
-  const skipped = new Set(['sort', 'page', 'per_page', 'expand', ...(NOT_OFFERED[path] ?? [])])
+  const skipped = new Set(['sort', 'page', 'per_page', ...(NOT_OFFERED[path] ?? [])])
 
   return queryParameters(path)
     .map((parameter) => parameter.name ?? '')

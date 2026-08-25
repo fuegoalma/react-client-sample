@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest'
 import { AlbumDetailPage } from '@/pages/albums/AlbumDetailPage'
 import { PhotoDetailPage } from '@/pages/photos/PhotoDetailPage'
 
-import { db, grantRole } from '../mocks/db'
+import { db, grantRole, mockTime } from '../mocks/db'
 import { forbidden, noContent, unprocessable } from '../mocks/envelope'
 import { server } from '../mocks/server'
 import { renderWithProviders } from '../utils/renderWithProviders'
@@ -323,7 +323,7 @@ describe('An album with more photos than fit on a page', () => {
         album_id: 10,
         title: `Photo ${String(index)}`,
         url: null,
-        created_at: index,
+        created_at: mockTime(index),
       })
     }
 

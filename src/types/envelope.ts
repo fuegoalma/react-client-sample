@@ -1,8 +1,19 @@
 /** Shape of `data` on an error response. */
 export interface ApiErrorPayload {
   readonly message?: string
-  /** Field name → validation messages (422), or a debug trace when YII_DEBUG. */
+  /**
+   * Machine-readable and stable — branch on this, never on `message`, which is
+   * wording aimed at a person and free to change.
+   */
+  readonly error_code?: string
+  /** Field name → validation messages. `{}` for anything that is not a 422. */
   readonly error?: Record<string, unknown>
+  /** Only when the API runs with `YII_DEBUG`; never sent in production. */
+  readonly debug?: {
+    readonly file?: string
+    readonly line?: number
+    readonly trace?: readonly string[]
+  }
 }
 
 export interface Pagination {

@@ -57,17 +57,19 @@ describe('ListQueryBuilder', () => {
       })
     })
 
-    it('joins expand and sort', () => {
+    it('joins a multi-attribute sort', () => {
       expect(
         ListQueryBuilder.toParams({
-          sort: [{ attribute: 'title', direction: 'desc' }],
-          expand: ['albums', 'photos'],
+          sort: [
+            { attribute: 'title', direction: 'desc' },
+            { attribute: 'id', direction: 'asc' },
+          ],
         }),
-      ).toEqual({ sort: '-title', expand: 'albums,photos' })
+      ).toEqual({ sort: '-title,id' })
     })
 
-    it('omits empty sort and expand lists', () => {
-      expect(ListQueryBuilder.toParams({ sort: [], expand: [] })).toEqual({})
+    it('omits an empty sort list', () => {
+      expect(ListQueryBuilder.toParams({ sort: [] })).toEqual({})
     })
   })
 

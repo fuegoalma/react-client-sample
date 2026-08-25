@@ -6,6 +6,7 @@ import {
   API_ORIGIN,
   CURRENT_USER_ID,
   db,
+  mockNow,
   nextId,
   type MockAlbum,
   type MockPhoto,
@@ -37,11 +38,13 @@ function toAlbum(album: MockAlbum): Album {
     title: album.title,
     is_deleted: album.is_deleted,
     delete_reason: album.delete_reason,
+    created_at: album.created_at,
+    updated_at: album.updated_at,
   }
 }
 
 function toPhoto(photo: MockPhoto): Photo {
-  return { id: photo.id, title: photo.title, url: photo.url }
+  return { id: photo.id, title: photo.title, url: photo.url, created_at: photo.created_at }
 }
 
 function toUser(user: MockUser): User {
@@ -50,6 +53,9 @@ function toUser(user: MockUser): User {
     first_name: user.first_name,
     last_name: user.last_name,
     email: user.email,
+    created_at: user.created_at,
+    updated_at: user.updated_at,
+    email_verified: user.email_verified,
   }
 }
 
@@ -103,6 +109,11 @@ function createMockUser(body: Record<string, string | undefined>): MockUser | Re
     email: body['email'] ?? '',
     password: body['password'] ?? '',
     roles: [],
+    created_at: mockNow(),
+    updated_at: mockNow(),
+    // A fresh account is unconfirmed: the API queues the message and records
+    // nothing until the token comes back.
+    email_verified: false,
   }
   db.users.push(user)
   return user
@@ -314,9 +325,9 @@ export const handlers = [
         url: new URL(request.url),
         items: db.albums
           .filter((album) => album.user_id === caller.id && !album.is_deleted)
-          .map((album) => ({ ...toAlbum(album), created_at: album.created_at })),
+          .map(toAlbum),
         likeFilters: ['title'],
-        sortable: ['id', 'user_id', 'title', 'created_at', 'updated_at'],
+        sortable: ['id', 'title', 'created_at', 'updated_at'],
       })
     }),
   ),
@@ -331,14 +342,12 @@ export const handlers = [
         url,
         items: visibleAlbums()
           .filter((album) => album.is_deleted === wantsDeleted)
-          .map((album) => ({
-            ...toAlbum(album),
-            user_id: album.user_id,
-            created_at: album.created_at,
-          })),
+          // `user_id` rides along for the filter only: the API accepts it as a
+          // filter but stopped accepting it as a sort, and never returns it.
+          .map((album) => ({ ...toAlbum(album), user_id: album.user_id })),
         likeFilters: ['title'],
         exactFilters: ['user_id'],
-        sortable: ['id', 'user_id', 'title', 'created_at', 'updated_at'],
+        sortable: ['id', 'title', 'created_at', 'updated_at'],
       })
     }),
   ),
@@ -357,7 +366,8 @@ export const handlers = [
         title: body.title,
         is_deleted: false,
         delete_reason: null,
-        created_at: Date.now(),
+        created_at: mockNow(),
+        updated_at: mockNow(),
       }
       db.albums.push(album)
       return created(toAlbum(album))
@@ -445,9 +455,7 @@ export const handlers = [
 
       return paginate({
         url: new URL(request.url),
-        items: db.photos
-          .filter((photo) => photo.album_id === album.id)
-          .map((photo) => ({ ...toPhoto(photo), created_at: photo.created_at })),
+        items: db.photos.filter((photo) => photo.album_id === album.id).map(toPhoto),
         likeFilters: ['title'],
         sortable: ['id', 'title', 'created_at'],
       })
@@ -474,7 +482,7 @@ export const handlers = [
         album_id: album.id,
         title,
         url: `${BASE}/uploads/albums/${album.id}/${slugify(title)}.webp`,
-        created_at: Date.now(),
+        created_at: mockNow(),
       }
       db.photos.push(photo)
       return created(toPhoto(photo))

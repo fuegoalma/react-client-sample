@@ -58,10 +58,6 @@ export const ListQueryBuilder = {
       params['sort'] = ListQueryBuilder.formatSort(query.sort)
     }
 
-    if (query.expand !== undefined && query.expand.length > 0) {
-      params['expand'] = query.expand.join(',')
-    }
-
     for (const [key, value] of Object.entries(query.filters ?? {})) {
       if (value === undefined || value === '') continue
       params[key] = typeof value === 'boolean' ? (value ? '1' : '0') : String(value)

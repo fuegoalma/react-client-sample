@@ -17,6 +17,10 @@ export interface MockUser {
   email: string
   password: string
   roles: string[]
+  created_at: string
+  updated_at: string
+  /** Recorded, not enforced — an unverified account is fully usable. */
+  email_verified: boolean
 }
 
 export interface MockAlbum {
@@ -25,7 +29,8 @@ export interface MockAlbum {
   title: string
   is_deleted: boolean
   delete_reason: string | null
-  created_at: number
+  created_at: string
+  updated_at: string
 }
 
 export interface MockPhoto {
@@ -33,7 +38,8 @@ export interface MockPhoto {
   album_id: number
   title: string
   url: string | null
-  created_at: number
+  /** No `updated_at`: only the title may change, and the API records no column for it. */
+  created_at: string
 }
 
 export interface MockRole {
@@ -164,6 +170,21 @@ export const ACCESS_TOKEN = 'access-token-1'
 export const REFRESH_TOKEN = 'refresh-token-1'
 export const CURRENT_USER_ID = 1
 
+/**
+ * A timestamp in the API's own format — `Y-m-d H:i:s`, wall clock, no zone.
+ *
+ * Stored as the string the API would send rather than as a number, so sorting a
+ * list by date exercises the same comparison the client will meet in
+ * production. The format is fixed-width, so lexicographic order *is*
+ * chronological order and the mock needs no date arithmetic to paginate.
+ */
+export function mockTime(offsetSeconds = 0): string {
+  return new Date(Date.UTC(2026, 1, 28, 20, 11, 48) + offsetSeconds * 1000)
+    .toISOString()
+    .slice(0, 19)
+    .replace('T', ' ')
+}
+
 function seed(): MockState {
   return {
     users: [
@@ -174,6 +195,9 @@ function seed(): MockState {
         email: 'ada@example.com',
         password: 'secret123',
         roles: [],
+        created_at: mockTime(),
+        updated_at: mockTime(),
+        email_verified: true,
       },
       {
         id: 2,
@@ -182,6 +206,11 @@ function seed(): MockState {
         email: 'grace@example.com',
         password: 'secret123',
         roles: [],
+        created_at: mockTime(60),
+        updated_at: mockTime(60),
+        // One seeded account is unconfirmed, so the profile screen's prompt has
+        // something to render without a test having to arrange it first.
+        email_verified: false,
       },
     ],
     albums: [
@@ -191,7 +220,8 @@ function seed(): MockState {
         title: 'Vacation 2025',
         is_deleted: false,
         delete_reason: null,
-        created_at: 2,
+        created_at: mockTime(120),
+        updated_at: mockTime(120),
       },
       {
         id: 11,
@@ -199,7 +229,8 @@ function seed(): MockState {
         title: 'Conference talks',
         is_deleted: false,
         delete_reason: null,
-        created_at: 1,
+        created_at: mockTime(60),
+        updated_at: mockTime(60),
       },
     ],
     photos: [
@@ -208,7 +239,7 @@ function seed(): MockState {
         album_id: 10,
         title: 'Beach sunset',
         url: `${API_ORIGIN}/uploads/albums/10/a.webp`,
-        created_at: 1,
+        created_at: mockTime(60),
       },
     ],
     roles: SYSTEM_ROLES.map((role) => ({ ...role, permissions: [...role.permissions] })),
@@ -240,6 +271,17 @@ export function grantRole(name: 'moderator' | 'admin' | 'super_admin'): void {
   db.callerPermissions = [...(role?.permissions ?? [])]
   const user = db.users.find((candidate) => candidate.id === CURRENT_USER_ID)
   if (user !== undefined) user.roles = [name]
+}
+
+/**
+ * The creation timestamp of a record made during a test.
+ *
+ * Derived from the id counter, which only ever grows: every record created
+ * after the seeds sorts after them, and after each other, without the mock
+ * needing a clock a test would then have to control.
+ */
+export function mockNow(): string {
+  return mockTime(db.nextId)
 }
 
 export function nextId(): number {
