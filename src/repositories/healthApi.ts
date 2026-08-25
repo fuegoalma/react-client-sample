@@ -27,7 +27,14 @@ export const healthApi = baseApi.injectEndpoints({
         if (result.error === undefined) {
           return isHealthCheck(result.data)
             ? { data: result.data }
-            : { error: { code: 0, message: 'Unrecognised health response.', fieldErrors: {} } }
+            : {
+                error: {
+                  code: 0,
+                  errorCode: 'unrecognised_response',
+                  message: 'Unrecognised health response.',
+                  fieldErrors: {},
+                },
+              }
         }
 
         if (result.error.code === 503) return { data: UNHEALTHY }

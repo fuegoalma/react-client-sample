@@ -19,6 +19,7 @@ import {
   created,
   fail,
   forbidden,
+  invalidCredentials,
   noContent,
   notFound,
   ok,
@@ -130,7 +131,7 @@ export const handlers = [
     const body = (await request.json()) as { email?: string; password?: string }
     const user = db.users.find((candidate) => candidate.email === body.email)
 
-    if (user === undefined || user.password !== body.password) return unauthorized()
+    if (user === undefined || user.password !== body.password) return invalidCredentials()
     return ok(issuePair(user.id))
   }),
 
@@ -145,10 +146,10 @@ export const handlers = [
 
   http.post(`${BASE}/auth/refresh`, async ({ request }) => {
     const body = (await request.json()) as { refresh_token?: string }
-    if (db.refreshFails) return unauthorized()
+    if (db.refreshFails) return unauthorized('refresh_token.invalid')
 
     const index = db.sessions.findIndex((session) => session.refreshToken === body.refresh_token)
-    if (index === -1) return unauthorized()
+    if (index === -1) return unauthorized('refresh_token.invalid')
 
     // Rotation: the presented token is single-use.
     const [session] = db.sessions.splice(index, 1)

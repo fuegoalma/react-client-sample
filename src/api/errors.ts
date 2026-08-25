@@ -2,6 +2,29 @@ import type { FetchBaseQueryError, FetchBaseQueryMeta } from '@reduxjs/toolkit/q
 
 import type { ApiError, ApiErrorPayload, FieldErrors } from '@/types'
 
+/**
+ * What a failure is called when the body did not say.
+ *
+ * Mirrors the API's own `ApiErrorCatalog`, which derives an `error_code` from
+ * the status for every failure that has no more specific reason. Keeping the
+ * same names on this side means a caller branching on `errorCode` reads the
+ * same value whether the API answered or something in front of it did.
+ */
+const DEFAULT_CODES: Readonly<Record<number, string>> = {
+  400: 'bad_request',
+  401: 'unauthorized',
+  403: 'forbidden',
+  404: 'not_found',
+  405: 'method_not_allowed',
+  409: 'conflict',
+  413: 'payload_too_large',
+  415: 'unsupported_media_type',
+  422: 'validation_failed',
+  429: 'too_many_requests',
+  500: 'server_error',
+  503: 'service_unavailable',
+}
+
 /** Fallbacks for the statuses the API documents, when it sends no message. */
 const DEFAULT_MESSAGES: Readonly<Record<number, string>> = {
   0: 'The server could not be reached. Check your connection and try again.',
@@ -10,6 +33,7 @@ const DEFAULT_MESSAGES: Readonly<Record<number, string>> = {
   403: 'You do not have permission to perform this action.',
   404: 'The requested resource was not found.',
   409: 'This operation conflicts with a safety rule and was refused.',
+  413: 'That file is too large to upload.',
   422: 'Please correct the highlighted fields.',
   429: 'Too many attempts. Please wait before trying again.',
   500: 'The server ran into an unexpected problem.',
@@ -18,6 +42,14 @@ const DEFAULT_MESSAGES: Readonly<Record<number, string>> = {
 
 function defaultMessage(code: number): string {
   return DEFAULT_MESSAGES[code] ?? 'An unexpected error occurred.'
+}
+
+/**
+ * `error` is the API's catch-all name for a status it does not enumerate — the
+ * same word its own catalog falls back to.
+ */
+function defaultCode(status: number): string {
+  return DEFAULT_CODES[status] ?? 'error'
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -36,30 +68,30 @@ function errorPayload(body: unknown): ApiErrorPayload {
 
   const payload = asRecord(envelope['data']) ?? envelope
   const message = typeof payload['message'] === 'string' ? payload['message'] : undefined
+  const errorCode = typeof payload['error_code'] === 'string' ? payload['error_code'] : undefined
   const error = asRecord(payload['error'])
 
-  return { ...(message !== undefined && { message }), ...(error !== null && { error }) }
+  return {
+    ...(message !== undefined && { message }),
+    ...(errorCode !== undefined && { error_code: errorCode }),
+    ...(error !== null && { error }),
+  }
 }
 
 /**
- * Keeps only entries that look like validation messages. On a 422 the API sends
- * `field → string[]`; on other statuses `error` may instead carry a debug trace,
- * which this drops rather than rendering as field errors.
+ * Reads the 422 field errors out of the envelope's `error`.
+ *
+ * The API sends `field → string[]` there and nothing else: a debug trace has
+ * its own `debug` key, and anything that is not a validation failure sends an
+ * empty object. So the only value shape worth recognising is a non-empty list
+ * of strings — an empty list carries no message and is not a field error.
  */
 export function extractFieldErrors(error: Record<string, unknown> | undefined): FieldErrors {
   if (error === undefined) return {}
 
   const result: Record<string, readonly string[]> = {}
   for (const [field, value] of Object.entries(error)) {
-    if (typeof value === 'string') {
-      result[field] = [value]
-    } else if (
-      // An empty array carries no message, so it is not a field error — which
-      // also keeps a debug trace's empty `trace: []` from being mistaken for one.
-      Array.isArray(value) &&
-      value.length > 0 &&
-      value.every((item) => typeof item === 'string')
-    ) {
+    if (Array.isArray(value) && value.length > 0 && value.every((it) => typeof it === 'string')) {
       result[field] = value
     }
   }
@@ -80,18 +112,16 @@ function retryAfterSeconds(meta: FetchBaseQueryMeta | undefined): number | undef
 export function toApiError(error: FetchBaseQueryError, meta?: FetchBaseQueryMeta): ApiError {
   if (typeof error.status === 'number') {
     const payload = errorPayload(error.data)
-    const fieldErrors = extractFieldErrors(payload.error)
     const retryAfter = retryAfterSeconds(meta)
-
-    // Yii's generic "An error occurred during execution" says nothing useful;
-    // our status-specific fallback does.
-    const isGenericMessage =
-      payload.message === undefined || payload.message.startsWith('An error occurred')
 
     return {
       code: error.status,
-      message: isGenericMessage ? defaultMessage(error.status) : payload.message,
-      fieldErrors,
+      errorCode: payload.error_code ?? defaultCode(error.status),
+      // The API sends wording aimed at a person for every failure it raises,
+      // including the ones it refuses for a named reason. Only a body that
+      // carries none — a proxy's answer, a truncated response — needs ours.
+      message: payload.message ?? defaultMessage(error.status),
+      fieldErrors: extractFieldErrors(payload.error),
       ...(retryAfter !== undefined && { retryAfter }),
     }
   }
@@ -99,16 +129,22 @@ export function toApiError(error: FetchBaseQueryError, meta?: FetchBaseQueryMeta
   if (error.status === 'PARSING_ERROR') {
     return {
       code: error.originalStatus,
+      errorCode: defaultCode(error.originalStatus),
       message: defaultMessage(error.originalStatus),
       fieldErrors: {},
     }
   }
 
   if (error.status === 'TIMEOUT_ERROR') {
-    return { code: 0, message: 'The request timed out. Please try again.', fieldErrors: {} }
+    return {
+      code: 0,
+      errorCode: 'timeout',
+      message: 'The request timed out. Please try again.',
+      fieldErrors: {},
+    }
   }
 
-  return { code: 0, message: defaultMessage(0), fieldErrors: {} }
+  return { code: 0, errorCode: 'network_error', message: defaultMessage(0), fieldErrors: {} }
 }
 
 export function isApiError(value: unknown): value is ApiError {
@@ -116,6 +152,7 @@ export function isApiError(value: unknown): value is ApiError {
   return (
     candidate !== null &&
     typeof candidate['code'] === 'number' &&
+    typeof candidate['errorCode'] === 'string' &&
     typeof candidate['message'] === 'string' &&
     asRecord(candidate['fieldErrors']) !== null
   )

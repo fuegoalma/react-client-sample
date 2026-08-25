@@ -42,7 +42,7 @@ function TestForm({ error }: { readonly error: unknown }) {
 }
 
 function apiError(fieldErrors: ApiError['fieldErrors'], message = 'Please correct the fields.') {
-  return { code: 422, message, fieldErrors } satisfies ApiError
+  return { code: 422, errorCode: 'validation_failed', message, fieldErrors } satisfies ApiError
 }
 
 describe('useApiForm', () => {

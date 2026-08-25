@@ -42,6 +42,13 @@ export type FieldErrors = Readonly<Record<string, readonly string[]>>
 export interface ApiError {
   /** HTTP status, or 0 when the request never reached the server. */
   readonly code: number
+  /**
+   * The API's machine-readable reason, and the thing to branch on — `message`
+   * is wording aimed at a person and free to change. Always present: a body
+   * carrying none falls back to the name of its status, so no caller has to
+   * test for `undefined` first.
+   */
+  readonly errorCode: string
   readonly message: string
   /** Populated for 422 responses. */
   readonly fieldErrors: FieldErrors

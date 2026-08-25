@@ -34,9 +34,10 @@ describe('Signing in', () => {
     await user.type(screen.getByLabelText('Password'), 'wrong-password')
     await user.click(screen.getByRole('button', { name: 'Sign in' }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      /session is not valid|sign in again/i,
-    )
+    // The API's own wording reaches the user now: "sign in again" was the
+    // client's stand-in for a generic 401, and it read as though a session had
+    // expired when in fact the password was simply wrong.
+    expect(await screen.findByRole('alert')).toHaveTextContent(/invalid email or password/i)
     expect(selectIsAuthenticated(store.getState())).toBe(false)
   })
 

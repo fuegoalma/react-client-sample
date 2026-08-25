@@ -17,16 +17,79 @@ export function noContent() {
   return new HttpResponse(null, { status: 204 })
 }
 
-export function fail(code: number, message = 'An error occurred during execution') {
-  return HttpResponse.json({ success: false, data: { message }, code }, { status: code })
+/**
+ * What the API calls a failure when the endpoint named no narrower reason —
+ * re-derived here rather than imported, like the rest of this mock.
+ */
+const STATUS_CODES: Readonly<Record<number, string>> = {
+  400: 'bad_request',
+  401: 'unauthorized',
+  403: 'forbidden',
+  404: 'not_found',
+  409: 'conflict',
+  413: 'payload_too_large',
+  422: 'validation_failed',
+  429: 'too_many_requests',
+  500: 'server_error',
+  503: 'service_unavailable',
 }
 
-export function unauthorized() {
-  return fail(401)
+const STATUS_MESSAGES: Readonly<Record<number, string>> = {
+  400: 'The request was malformed.',
+  401: 'Your credentials are missing or no longer valid.',
+  403: 'You are not allowed to perform this action.',
+  404: 'The requested resource was not found.',
+  409: 'This operation conflicts with a safety rule and was refused.',
+  422: 'The request could not be processed — see `error` for the fields at fault.',
+  429: 'Too many attempts. Please try again later.',
+  500: 'The server ran into an unexpected problem.',
+  503: 'The service is temporarily unavailable.',
+}
+
+/**
+ * Every failure the API sends carries a message, a machine-readable
+ * `error_code`, and an `error` map that is empty unless the failure is a
+ * validation one. Debug detail, when the server is in debug mode, has its own
+ * key and never lands in `error`.
+ */
+function failure(
+  code: number,
+  {
+    message,
+    errorCode,
+    error = {},
+  }: { message?: string; errorCode?: string; error?: Record<string, string[]> } = {},
+) {
+  return {
+    success: false,
+    data: {
+      message: message ?? STATUS_MESSAGES[code] ?? 'The request could not be completed.',
+      error_code: errorCode ?? STATUS_CODES[code] ?? 'error',
+      error,
+    },
+    code,
+  }
+}
+
+export function fail(code: number, message?: string, errorCode?: string) {
+  return HttpResponse.json(failure(code, { message, errorCode }), { status: code })
+}
+
+export function unauthorized(errorCode?: string) {
+  return fail(401, undefined, errorCode)
+}
+
+/**
+ * A rejected email/password pair. Deliberately says nothing about which half
+ * was wrong — telling the two apart would make the endpoint an
+ * account-enumeration oracle.
+ */
+export function invalidCredentials(message = 'Invalid email or password.') {
+  return fail(401, message, 'auth.invalid_credentials')
 }
 
 export function forbidden() {
-  return fail(403, 'You are not allowed to perform this action.')
+  return fail(403)
 }
 
 export function notFound() {
@@ -35,29 +98,18 @@ export function notFound() {
 
 /** A safety-invariant refusal, e.g. the last role manager. */
 export function conflict(message: string) {
-  return HttpResponse.json({ success: false, data: { message }, code: 409 }, { status: 409 })
+  return HttpResponse.json(failure(409, { message }), { status: 409 })
 }
 
 export function unprocessable(errors: Record<string, string[]>) {
-  return HttpResponse.json(
-    {
-      success: false,
-      data: { message: 'An error occurred during execution', error: errors },
-      code: 422,
-    },
-    { status: 422 },
-  )
+  return HttpResponse.json(failure(422, { error: errors }), { status: 422 })
 }
 
-/**
- * The rate limiter throws, so the response carries the error handler's generic
- * message — which is exactly why the client substitutes its own wording.
- */
 export function tooManyRequests(retryAfter = 60) {
-  return HttpResponse.json(
-    { success: false, data: { message: 'An error occurred during execution' }, code: 429 },
-    { status: 429, headers: { 'Retry-After': String(retryAfter) } },
-  )
+  return HttpResponse.json(failure(429), {
+    status: 429,
+    headers: { 'Retry-After': String(retryAfter) },
+  })
 }
 
 export interface PageOptions<T> {
