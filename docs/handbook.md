@@ -121,23 +121,28 @@ first, or override: `make prod-run PROD_PORT=8094 PROD_API_URL=https://api.examp
 
 ### Tests
 
-| Command                | What it does                                               |
-| ---------------------- | ---------------------------------------------------------- |
-| `make test`            | The whole Vitest suite (unit + functional)                 |
-| `make test-unit`       | Unit only — services, forms, transport, in isolation       |
-| `make test-functional` | Functional only — whole pages against MSW                  |
-| `make test-one file=…` | A single test file                                         |
-| `make e2e-install`     | Install the Playwright browser — once per machine _(host)_ |
-| `make test-e2e`        | The Playwright suite against the running stack _(host)_    |
+| Command                | What it does                                                   |
+| ---------------------- | -------------------------------------------------------------- |
+| `make test`            | The whole Vitest suite — unit, contract and functional         |
+| `make test-coverage`   | The same, with the 100% thresholds enforced                    |
+| `make test-unit`       | Unit only — services, forms, transport, reducers, in isolation |
+| `make test-contract`   | Contract only — the client against the OpenAPI document        |
+| `make test-functional` | Functional only — whole pages against MSW                      |
+| `make test-one file=…` | A single test file                                             |
+| `make e2e-install`     | Install the Playwright browser — once per machine _(host)_     |
+| `make test-e2e`        | The Playwright suite against the running stack _(host)_        |
 
 ### Quality gates
 
-| Command          | What it does                                                            |
-| ---------------- | ----------------------------------------------------------------------- |
-| `make cs-check`  | Report style violations (Prettier + ESLint + Stylelint), change nothing |
-| `make cs-fix`    | Reformat the whole codebase in one command                              |
-| `make typecheck` | The TypeScript compiler in check-only mode                              |
-| `make check`     | `cs-check` + `typecheck` + `test` — exactly what CI runs                |
+| Command            | What it does                                                                                 |
+| ------------------ | -------------------------------------------------------------------------------------------- |
+| `make cs-check`    | Report style violations (Prettier + ESLint + Stylelint), change nothing                      |
+| `make cs-fix`      | Reformat the whole codebase in one command                                                   |
+| `make typecheck`   | The TypeScript compiler in check-only mode                                                   |
+| `make size`        | The built bundle against its budget                                                          |
+| `make spec-verify` | Do the committed types match the committed OpenAPI document?                                 |
+| `make spec-drift`  | Has that document moved? _(reads `SPEC_URL`, changes nothing)_                               |
+| `make check`       | `cs-check` + `spec-verify` + `typecheck` + `build` + `size` + `test-coverage` — what CI runs |
 
 ---
 
@@ -190,16 +195,19 @@ Repository → ActiveRecord**, translated to what a client actually has:
 
 ```
 src/
-  app/            store, router, slices, typed hooks        (composition root)
+  app/            store, router, paths, slices, typed hooks (composition root)
   config/         runtime configuration (env.js ?? import.meta.env)
-  contracts/      TokenStorage, PermissionChecker           (the DI seams)
-  types/          DTOs + envelope, pagination, ApiError
+  contracts/      TokenStorage, PermissionChecker,          (the DI seams)
+                  ErrorReporter, ThemePreference
+  types/          DTOs + envelope, pagination, ApiError, ListQuery
   api/            transport: envelope, errors, re-auth
   repositories/   one module per resource, injected into one RTK Query API
-  services/       PermissionService, AlbumPolicy, ListQueryBuilder, TokenStorage
-  forms/          rules + schemas — the client's form requests
+  services/       PermissionService + one policy per resource, ListQueryBuilder,
+                  TokenStorage, theme, error reporting, DateTime
+  forms/          rules + schemas + listSpecs — the client's form requests
   hooks/          useAuth, usePermissions, useListQuery, useApiForm,
-                  useMutationAction, useToggleSelection, useNotifications
+                  useMutationAction, useToggleSelection, useNotifications,
+                  useNumericParam, useTheme, useDocumentTitle
   components/     layout/, guards/, ui/, and per-resource dialogs
   pages/          one folder per screen
   styles/         SCSS: variables → Bootstrap → our components
@@ -222,6 +230,17 @@ try/report/catch seven screens repeated), and
 [`UserUpdateForm`](../src/components/users/UserUpdateForm.tsx) (one form for the
 profile and the admin's view of an account).
 
+The same sweep, run again later, found four more: [`src/app/paths.ts`](../src/app/paths.ts)
+(every address, built from the pattern the route table declares, after
+twenty-five literals had been spelled out beside it), a delete dialog per
+resource rather than a `ConfirmDialog` inside two of the four list screens,
+`listTags`/`memberTags` in [`baseApi.ts`](../src/repositories/baseApi.ts) (the
+tag block five list endpoints had copied), and two things that were workarounds
+rather than decisions any screen made — `onSubmitHandler` in
+[`useApiForm`](../src/hooks/useApiForm.ts), and
+[`useNumericParam`](../src/hooks/useNumericParam.ts), which returns a record id
+together with the `skip` that keeps `/albums/NaN` from being requested.
+
 ### Transport
 
 `fetchBaseQuery` is wrapped twice, in [`src/api/`](../src/api/):
@@ -229,9 +248,14 @@ profile and the admin's view of an account).
 - **Envelope** — every response is `{success, data, code}`; the transport strips
   it, so repositories and everything above them work with plain DTOs.
 - **Errors** — HTTP, network and parse failures are normalised into one
-  `ApiError { code, message, fieldErrors }`. A 422's `data.error` maps straight
-  onto the offending form fields; a 409's message (a safety invariant refusing
-  the operation) is shown verbatim.
+  `ApiError { code, errorCode, message, fieldErrors, retryAfter?, requestId? }`.
+  `errorCode` is the field a program branches on and `message` is for a person,
+  never matched against ([ADR 8](adr/0008-branch-on-the-error-code.md)). A 422's
+  `data.error` maps straight onto the offending form fields; a 409's message (a
+  safety invariant refusing the operation) is shown verbatim. `retryAfter` and
+  `requestId` come from headers the API exposes cross-origin — the first makes a
+  429 say how long to wait, the second gives a bug report something the server
+  log is searchable by.
 - **Re-authentication** — on a 401 the transport refreshes once behind a mutex
   and replays the original request. The mutex matters: refresh tokens **rotate**
   and the API treats a re-used one as a leak, revoking the whole session — so two
@@ -361,11 +385,23 @@ length limits against the request body it is transcribed from.
 ```bash
 make sync-spec       # refetch openapi.yaml from SPEC_URL, regenerate types
 make spec-verify     # the offline half: do the committed types match that copy?
+make spec-drift      # has SPEC_URL moved since? (read-only)
 make test-contract   # see what moved
 ```
 
-The copy is committed because CI has no API to ask; `spec-drift.yml` refetches
-it on a schedule so the snapshot cannot quietly go stale. Three deliberate
+The copy is committed so the suite runs with no API to ask, which is also what
+makes it a snapshot that can go stale without anything noticing: `spec-verify`
+compares the two halves of that snapshot, and they stay consistent with each
+other long after the document they were taken from has changed.
+[`spec-drift.yml`](../.github/workflows/spec-drift.yml) is what notices —
+daily, it refetches the document, regenerates the types and re-runs the
+contract gates against them. It reads `API_SPEC_URL`, which points at **the API
+repository's own committed `config/openapi.yaml`** rather than a running
+instance: a hosted runner cannot reach the API on `localhost`, but a file under
+source control needs no server, and it is the same file the API serves at
+`/docs/openapi.yaml`. `make sync-spec` and `make spec-drift` read the same
+document through `SPEC_URL`, so what CI compares against and what you refresh
+from cannot diverge. Three deliberate
 asymmetries are encoded in the tests rather than left implicit: `POST
 /auth/refresh` is issued by the transport, not a repository; `/albums` offers a
 `user_id` filter the client does not — an album list response carries no owner,
@@ -407,7 +443,7 @@ cannot drift from what the suite proves.
 
 ## Testing
 
-Four suites. **534 Vitest tests** across 49 files (unit, contract and
+Four suites. **547 Vitest tests** across 50 files (unit, contract and
 functional) at **100% coverage — lines, branches, functions and statements** —
 plus **31 Playwright specs**.
 
@@ -427,8 +463,12 @@ make test-one file=tests/unit/services/albumPolicy.test.ts
 make test-e2e          # Playwright, against the real API (host)
 ```
 
-- **Unit** ([`tests/unit/`](../tests/unit/)) — services, form schemas, the error
-  normaliser and the list-query serialiser. No React, no network.
+- **Unit** ([`tests/unit/`](../tests/unit/)) — services, form schemas and list
+  specs, the error normaliser, the list-query serialiser, the route builders and
+  the reducers. No React, no network.
+- **Contract** ([`tests/contract/`](../tests/contract/)) — the client against the
+  vendored OpenAPI document, in both directions; see
+  [The contract suite](#the-contract-suite) above.
 - **Functional** ([`tests/functional/`](../tests/functional/)) — every page, plus
   the shared components and hooks, rendered with a real store and router against
   **MSW handlers written from the OpenAPI spec**. The mock re-implements the API's behaviour — the envelope, pagination,
@@ -505,7 +545,7 @@ The TypeScript compiler in check-only mode — `strict`, plus
 
 ```bash
 make typecheck
-make check      # cs-check + typecheck + test, exactly what CI runs
+make check      # cs-check + spec-verify + typecheck + build + size + test-coverage
 ```
 
 ---
@@ -536,18 +576,33 @@ stylesheet with the rest of the design.
 
 ## Continuous Integration & Delivery
 
-- **CI** ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)) — on every push
-  and pull request, the same three gates as locally and in the same order: code
-  style, static analysis, tests (with coverage). A second job runs the Playwright
-  suite; since the API is not part of this repository, it is **skipped unless the
-  `E2E_API_URL` repository variable is set**, and is otherwise run locally with
-  `make test-e2e`.
-- **CD** ([`.github/workflows/cd.yml`](../.github/workflows/cd.yml)) — chained to a
-  green CI on `master`. It builds the `prod` stage with Buildx and smoke-tests
-  the real image: Apache serves the shell, falls back to it for a client-side
-  route, and the entrypoint injected the API URL. The release then runs through a
+Five workflows. CI is the gate; the other four each answer a question CI cannot.
+
+- **CI** ([`ci.yml`](../.github/workflows/ci.yml)) — on every push and pull
+  request, the same gates as `make check` and in the same order: an `npm audit`
+  of the runtime dependencies (build tooling is reported but does not block),
+  code style, the generated types against the vendored spec, static analysis,
+  the bundle and its budget, then the tests with coverage. A second job runs the
+  Playwright suite; since the API is not part of this repository, it is
+  **skipped unless the `E2E_API_URL` repository variable is set**, and is
+  otherwise run locally with `make test-e2e`.
+- **CD** ([`cd.yml`](../.github/workflows/cd.yml)) — chained to a green CI on
+  `master`. It builds the `prod` stage with Buildx and smoke-tests the real
+  image: Apache serves the shell, falls back to it for a client-side route, and
+  the entrypoint injected the API URL. The release then runs through a
   `production` GitHub Environment, but is **simulated** — this sample provisions
   no server.
+- **Demo and UI kit** ([`pages.yml`](../.github/workflows/pages.yml)) — chained
+  to a green CI the same way, it publishes the MSW-backed demo and Storybook to
+  GitHub Pages. Nothing is published from a commit whose tests did not pass.
+- **Spec drift** ([`spec-drift.yml`](../.github/workflows/spec-drift.yml)) —
+  daily, it refetches the API's OpenAPI document and re-runs the contract gates
+  against it, because every other gate reads the committed snapshot. See
+  [The contract suite](#the-contract-suite).
+- **CodeQL** ([`codeql.yml`](../.github/workflows/codeql.yml)) — static security
+  analysis on push, pull request and a weekly schedule. A different question
+  from the type-aware lint in CI: that one asks whether the code is well formed,
+  this one asks whether it can be made to misbehave.
 
 ---
 
@@ -569,7 +624,7 @@ stylesheet with the rest of the design.
 ## Project Structure
 
 ```
-├── .github/workflows/  # CI (cs-check, typecheck, tests) + CD (build image, deploy)
+├── .github/workflows/  # CI · CD · Pages (demo + UI kit) · spec drift · CodeQL
 ├── Dockerfile          # Multi-stage image: base → dev → build → prod (Apache)
 ├── .dockerignore       # Allow-list build context
 ├── docker-compose.yml  # Local dev stack (Vite dev server + preview port)
@@ -577,8 +632,9 @@ stylesheet with the rest of the design.
 ├── index.html          # The shell; loads /env.js before the bundle
 ├── public/env.js       # Runtime-config stub, overwritten in the production image
 ├── src/                # Application code (see Architecture)
+├── docs/               # This handbook, the ADRs, and the README's screenshots
 ├── tests/
-│   ├── unit/           # Layers in isolation (services, forms, transport)
+│   ├── unit/           # Layers in isolation (services, forms, transport, reducers)
 │   ├── functional/     # Pages, components/ and hooks/ against MSW
 │   ├── e2e/            # Playwright against the real API
 │   ├── mocks/          # MSW handlers, their gates, and the state behind them
@@ -586,7 +642,7 @@ stylesheet with the rest of the design.
 │   └── utils/          # renderWithProviders, checkerFor
 ├── .env.example        # Every environment variable, documented above
 ├── vite.config.ts      # Build, dev server, preview, SCSS options
-├── vitest.config.ts    # Two test projects + the 100% coverage thresholds
+├── vitest.config.ts    # Three test projects + the 100% coverage thresholds
 ├── playwright.config.ts
 ├── eslint.config.js    # Type-aware linting, with its exceptions justified
 ├── .prettierrc.json / .stylelintrc.json

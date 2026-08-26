@@ -118,14 +118,17 @@ The layering deliberately mirrors the API's own **Controller → Form Request �
 src/
   app/            store, router, paths, slices, typed hooks (composition root)
   config/         runtime configuration (env.js ?? import.meta.env)
-  contracts/      TokenStorage, PermissionChecker           (the DI seams)
+  contracts/      TokenStorage, PermissionChecker,          (the DI seams)
+                  ErrorReporter, ThemePreference
   types/          DTOs + envelope, pagination, ApiError, ListQuery
   api/            transport: envelope unwrap, error normalisation, re-auth
   repositories/   one module per resource, all injected into one RTK Query API
-  services/       PermissionService, one policy per resource, ListQueryBuilder, TokenStorage
+  services/       PermissionService, one policy per resource, ListQueryBuilder,
+                  TokenStorage, theme, error reporting, DateTime
   forms/          rules + schemas + listSpecs — the client's form requests
   hooks/          useAuth, usePermissions, useListQuery, useApiForm,
-                  useNotifications, useMutationAction, useToggleSelection
+                  useNotifications, useMutationAction, useToggleSelection,
+                  useNumericParam, useTheme, useDocumentTitle
   components/     layout/, guards/, ui/, and per-resource dialogs
   pages/          one folder per screen
   styles/         SCSS: our variables → Bootstrap → our components
@@ -291,6 +294,8 @@ make prod-run PROD_API_URL=https://api.example.com
 
 Never read `import.meta.env` directly outside `src/config/` — a value baked at build time cannot be changed at deploy time.
 
+**Two files are exempt, and only for values that are build-time by nature rather than deployment-time** ([ADR 6](docs/adr/0006-runtime-configuration.md) records both, and each is commented where it appears). `src/main.tsx` reads `VITE_DEMO`, which must stay a literal so Rollup can see the branch is dead in a normal build and drop the whole of MSW with it, and Vite's `BASE_URL` for the service worker's URL; `src/app/App.tsx` reads `BASE_URL` for the router's basename. Both are the subdirectory the demo is published under — a property of the artifact, not of where it is pointed. Do not add a third without amending that ADR.
+
 ## Testing Conventions
 
 Four suites, mirroring the API's own split plus a contract suite. **547 Vitest tests** across 50 files (unit, contract, functional) at **100% coverage — lines, branches, functions and statements alike** — plus **31 Playwright specs**.
@@ -366,13 +371,14 @@ That is what makes it work in CI: a hosted runner cannot reach the API on `local
 ## Project Structure
 
 ```
-├── .github/workflows/  # CI (cs-check, typecheck, tests) + CD (build image, deploy)
+├── .github/workflows/  # CI · CD · Pages (demo + UI kit) · spec drift · CodeQL
 ├── Dockerfile          # Multi-stage: base → dev / build → prod (Apache)
 ├── .dockerignore       # Allow-list build context
 ├── docker-compose.yml  # Local dev stack (Vite dev server on CLIENT_PORT)
 ├── docker/apache/      # Production vhost + the entrypoint that writes env.js
 ├── public/env.js       # Runtime-config stub, overwritten in the prod image
 ├── src/                # Application code (see Architecture)
+├── docs/               # handbook.md, the ADRs, and the README's screenshots
 ├── tests/
 │   ├── unit/           # Layers in isolation (services, forms, transport, reducers)
 │   ├── functional/     # Pages, components/ and hooks/ against MSW

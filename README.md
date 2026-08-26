@@ -62,7 +62,7 @@ flowchart LR
   end
 
   C["contracts/<br/>TokenStorage · PermissionChecker<br/>ErrorReporter · ThemePreference"]
-  API[("Yii2/Laravel REST API")]
+  API[("Yii2 REST API")]
 
   P --> POL
   P --> F
@@ -88,8 +88,9 @@ flowchart LR
   issues, and each list's filters and sort whitelist, all checked against the
   vendored `openapi.yaml` — checked against, not generated from
   ([ADR 7](docs/adr/0007-openapi-as-a-checked-oracle.md)). `make spec-verify`
-  holds the committed types to that document, and a scheduled job refetches it
-  from the API so the snapshot cannot quietly go stale.
+  holds the committed types to that document; a daily job refetches the API's
+  own copy from its repository and re-runs the contract gates, so the snapshot
+  cannot quietly go stale.
 - **[`tests/mocks/`](tests/mocks/)** — a small re-implementation of the API,
   not canned responses, with its permission logic deliberately re-derived rather
   than imported from `src/` ([ADR 5](docs/adr/0005-mock-api-as-independent-mirror.md)).
@@ -97,7 +98,7 @@ flowchart LR
   one modal shell, one table, one loading/failed/empty triad, each shown on its
   own in both themes with axe running per component.
 
-**534 Vitest tests at 100% coverage** — lines, branches, functions and
+**547 Vitest tests at 100% coverage** — lines, branches, functions and
 statements — plus 31 Playwright specs. Coverage is a build gate, not a report:
 an uncovered line fails the commit that introduced it.
 
