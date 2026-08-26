@@ -8,13 +8,17 @@ import type { ZodType } from 'zod'
 import {
   albumSchema,
   ALLOWED_IMAGE_EXTENSIONS,
+  changePasswordSchema,
+  forgotPasswordSchema,
   loginSchema,
   photoUpdateSchema,
   photoUploadSchema,
   registerSchema,
+  resetPasswordSchema,
   roleCreateSchema,
   userCreateSchema,
   userUpdateSchema,
+  verifyEmailSchema,
 } from '@/forms'
 
 interface Property {
@@ -76,6 +80,27 @@ const FORMS: Readonly<Record<string, FormUnderTest>> = {
     form: registerSchema,
     body: spec.components.schemas['RegisterRequest'],
     clientOnly: ['password_confirm'],
+  },
+  'forgot password': {
+    form: forgotPasswordSchema,
+    body: spec.components.schemas['ForgotPasswordRequest'],
+  },
+  'reset password': {
+    form: resetPasswordSchema,
+    body: spec.components.schemas['ResetPasswordRequest'],
+    clientOnly: ['password_confirm'],
+  },
+  'verify email': {
+    form: verifyEmailSchema,
+    body: spec.components.schemas['VerifyEmailRequest'],
+  },
+  'change password': {
+    form: changePasswordSchema,
+    body: spec.components.schemas['ChangePasswordRequest'],
+    clientOnly: ['password_confirm'],
+    // The current password is checked against what is stored, not proposed, so
+    // the form does not hold it to the length rules a new one must meet.
+    limitsElsewhere: ['current_password'],
   },
   'user create': {
     form: userCreateSchema,
