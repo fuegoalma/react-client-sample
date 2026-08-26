@@ -117,7 +117,7 @@ function retryAfterSeconds(meta: FetchBaseQueryMeta | undefined): number | undef
 
 /** How long the API says to wait, in words, when it says at all. */
 function rateLimitMessage(retryAfter: number | undefined): string {
-  if (retryAfter === undefined) return DEFAULT_MESSAGES[429] ?? ''
+  if (retryAfter === undefined) return defaultMessage(429)
   const unit = retryAfter === 1 ? 'second' : 'seconds'
   return `Too many attempts. Please wait ${String(retryAfter)} ${unit} and try again.`
 }

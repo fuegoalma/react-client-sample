@@ -2,6 +2,7 @@ import { screen, waitFor, within } from '@testing-library/react'
 import { http } from 'msw'
 import { describe, expect, it } from 'vitest'
 
+import { selectIsAuthenticated } from '@/app/authSlice'
 import { ProfilePage } from '@/pages/ProfilePage'
 import { UserRolesPage } from '@/pages/users/UserRolesPage'
 import { UsersPage } from '@/pages/users/UsersPage'
@@ -184,61 +185,58 @@ describe('Profile', () => {
     expect(screen.getByText('album.soft-delete.any')).toBeInTheDocument()
   })
 
-  it('hides the password fields until the change is asked for', async () => {
-    // Nothing for a browser to autofill while the checkbox is unticked.
-    const { user } = renderWithProviders(<ProfilePage />)
+  it('offers no password checkbox — the caller has a better route', async () => {
+    // Setting one's own password without proving the current one is exactly
+    // what `PUT /users/me/password` exists to stop.
+    renderWithProviders(<ProfilePage />)
 
     await screen.findByLabelText('First name')
-    expect(screen.queryByLabelText('New password')).not.toBeInTheDocument()
-
-    await user.click(screen.getByLabelText('Change password'))
-    expect(screen.getByLabelText('New password')).toBeInTheDocument()
-    expect(screen.getByLabelText('Confirm new password')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Change password')).not.toBeInTheDocument()
   })
 
-  it('changes the password once both fields match', async () => {
-    const { user } = renderWithProviders(<ProfilePage />)
+  it('changes the password and ends the session, as the API does', async () => {
+    const { user, store } = renderWithProviders(<ProfilePage />)
 
-    await user.click(await screen.findByLabelText('Change password'))
+    await user.type(await screen.findByLabelText('Current password'), 'secret123')
     await user.type(screen.getByLabelText('New password'), 'brand-new-1')
     await user.type(screen.getByLabelText('Confirm new password'), 'brand-new-1')
-    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+    await user.click(screen.getByRole('button', { name: 'Change password' }))
 
     await waitFor(() => {
       expect(db.users.find((candidate) => candidate.id === 1)?.password).toBe('brand-new-1')
     })
+
+    // The API withdrew this token along with every other, so staying signed in
+    // would leave every mounted query 401ing.
+    await waitFor(() => {
+      expect(selectIsAuthenticated(store.getState())).toBe(false)
+    })
+    expect(await screen.findByText('Password changed. Please sign in again.')).toBeInTheDocument()
   })
 
-  it('refuses a mistyped confirmation', async () => {
+  it('reports a wrong current password without changing anything', async () => {
+    const { user, store } = renderWithProviders(<ProfilePage />)
+
+    await user.type(await screen.findByLabelText('Current password'), 'not-my-password')
+    await user.type(screen.getByLabelText('New password'), 'brand-new-1')
+    await user.type(screen.getByLabelText('Confirm new password'), 'brand-new-1')
+    await user.click(screen.getByRole('button', { name: 'Change password' }))
+
+    expect(await screen.findByText('The current password is incorrect.')).toBeInTheDocument()
+    expect(db.users.find((candidate) => candidate.id === 1)?.password).toBe('secret123')
+    expect(selectIsAuthenticated(store.getState())).toBe(true)
+  })
+
+  it('refuses a mistyped confirmation without contacting the API', async () => {
     const { user } = renderWithProviders(<ProfilePage />)
 
-    await user.click(await screen.findByLabelText('Change password'))
+    await user.type(await screen.findByLabelText('Current password'), 'secret123')
     await user.type(screen.getByLabelText('New password'), 'brand-new-1')
     await user.type(screen.getByLabelText('Confirm new password'), 'brand-new-2')
-    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+    await user.click(screen.getByRole('button', { name: 'Change password' }))
 
     expect(await screen.findByText('The two passwords do not match.')).toBeInTheDocument()
     expect(db.users.find((candidate) => candidate.id === 1)?.password).toBe('secret123')
-  })
-
-  it('leaves the password alone when the change is unticked again', async () => {
-    // Typed, then thought better of — the value must not be sent, and must not
-    // fail validation either.
-    const { user } = renderWithProviders(<ProfilePage />)
-
-    await user.click(await screen.findByLabelText('Change password'))
-    await user.type(screen.getByLabelText('New password'), 'brand-new-1')
-    await user.type(screen.getByLabelText('Confirm new password'), 'a-different-one')
-    await user.click(screen.getByLabelText('Change password'))
-
-    await user.type(screen.getByLabelText('First name'), 'Augusta')
-    await user.click(screen.getByRole('button', { name: 'Save changes' }))
-
-    await waitFor(() => {
-      const me = db.users.find((candidate) => candidate.id === 1)
-      expect(me?.first_name).toBe('Augusta')
-      expect(me?.password).toBe('secret123')
-    })
   })
 
   it('sends only the fields that were filled in', async () => {

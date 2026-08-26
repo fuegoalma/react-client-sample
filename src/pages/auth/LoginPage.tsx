@@ -38,7 +38,10 @@ export function LoginPage() {
       lead="Use the email and password of your API account."
       footer={
         <>
-          No account yet? <Link to="/register">Create one</Link>
+          <Link to="/forgot-password">Forgot your password?</Link>
+          <span className="d-block mt-2">
+            No account yet? <Link to="/register">Create one</Link>
+          </span>
         </>
       }
     >

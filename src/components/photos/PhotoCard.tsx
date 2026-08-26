@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 
+import { DateTime } from '@/services'
 import type { Photo } from '@/types'
 
 import { PhotoFrame } from './PhotoFrame'
@@ -26,6 +27,7 @@ export function PhotoCard({ photo, albumId, canEdit, canDelete, onDelete }: Phot
             of its own, so a tile sits one level below it — an h3 here skips a
             level, which is how a screen reader loses the structure. */}
         <h2 className="photoCard__title">{photo.title}</h2>
+        <p className="photoCard__meta">{DateTime.toDate(photo.created_at)}</p>
 
         <div className="photoCard__actions">
           <Link

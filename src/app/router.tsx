@@ -7,8 +7,11 @@ import { NotFoundPage } from '@/pages/NotFoundPage'
 import { ProfilePage } from '@/pages/ProfilePage'
 import { AlbumDetailPage } from '@/pages/albums/AlbumDetailPage'
 import { MyAlbumsPage } from '@/pages/albums/MyAlbumsPage'
+import { ForgotPasswordPage } from '@/pages/auth/ForgotPasswordPage'
 import { LoginPage } from '@/pages/auth/LoginPage'
 import { RegisterPage } from '@/pages/auth/RegisterPage'
+import { ResetPasswordPage } from '@/pages/auth/ResetPasswordPage'
+import { VerifyEmailPage } from '@/pages/auth/VerifyEmailPage'
 import { PhotoDetailPage } from '@/pages/photos/PhotoDetailPage'
 import { PERMISSIONS } from '@/services'
 
@@ -57,6 +60,15 @@ export function AppRoutes() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
+
+      {/*
+       * Public, like the endpoints behind them: a locked-out user has no
+       * session to authenticate with, and a confirmation link has to open in
+       * whichever browser the message was read in.
+       */}
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
+      <Route path="/verify-email" element={<VerifyEmailPage />} />
 
       <Route element={<RequireAuth />}>
         <Route element={<AppLayout />}>

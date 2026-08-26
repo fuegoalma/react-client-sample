@@ -46,6 +46,14 @@
     font-weight: 600;
   }
 
+  // The tile's gap already separates it from the title, so this carries no
+  // margin of its own.
+  &__meta {
+    margin: 0;
+    font-size: 0.75rem;
+    color: var(--bs-secondary-color);
+  }
+
   &__actions {
     display: flex;
     gap: 0.375rem;

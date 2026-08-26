@@ -6,6 +6,7 @@ import { UserFormDialog } from '@/components/users/UserFormDialog'
 import { userListSpec } from '@/forms'
 import { useListQuery, useMutationAction, usePermissions } from '@/hooks'
 import { useDeleteUserMutation, useUsersQuery, usePrefetchUser } from '@/repositories'
+import { DateTime } from '@/services'
 import type { User } from '@/types'
 
 /** All user accounts (`user.index.any`, moderator and above). */
@@ -54,6 +55,13 @@ export function UsersPage() {
       ),
     },
     { key: 'email', header: 'Email', sortAttribute: 'email', render: (user) => user.email },
+    {
+      key: 'created_at',
+      header: 'Created',
+      sortAttribute: 'created_at',
+      className: 'text-secondary',
+      render: (user) => DateTime.toDate(user.created_at),
+    },
     {
       key: 'actions',
       header: <span className="visually-hidden">Actions</span>,
