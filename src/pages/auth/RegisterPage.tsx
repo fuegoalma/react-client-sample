@@ -9,25 +9,25 @@ import {
   fieldClass,
 } from '@/components'
 import { registerSchema, type RegisterValues } from '@/forms'
+import { paths } from '@/app/paths'
 import { useApiForm, useAuth } from '@/hooks'
 
 export function RegisterPage() {
   const { register: createAccount, isRegistering } = useAuth()
   const navigate = useNavigate()
 
-  const form = useApiForm(registerSchema, {
+  const {
+    register,
+    onSubmitHandler,
+    submit,
+    formState: { errors },
+  } = useApiForm(registerSchema, {
     first_name: '',
     last_name: '',
     email: '',
     password: '',
     password_confirm: '',
   })
-  const {
-    register,
-    handleSubmit,
-    submit,
-    formState: { errors },
-  } = form
 
   const onSubmit = ({ password_confirm: _confirm, ...values }: RegisterValues): Promise<void> =>
     // The confirmation is form state, not an attribute the API knows. No toast:
@@ -35,7 +35,7 @@ export function RegisterPage() {
     // email comes back as a 422 on the `email` field.
     submit(createAccount(values), {
       onDone: () => {
-        void navigate('/albums', { replace: true })
+        void navigate(paths.myAlbums, { replace: true })
       },
     })
 
@@ -45,11 +45,11 @@ export function RegisterPage() {
       lead="A new account starts with no roles — you can manage your own albums right away."
       footer={
         <>
-          Already registered? <Link to="/login">Sign in</Link>
+          Already registered? <Link to={paths.login}>Sign in</Link>
         </>
       }
     >
-      <form onSubmit={(event) => void handleSubmit(onSubmit)(event)} noValidate>
+      <form onSubmit={onSubmitHandler(onSubmit)} noValidate>
         <FormAlert error={errors.root} />
 
         <div className="row g-2">

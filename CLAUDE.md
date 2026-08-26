@@ -115,7 +115,7 @@ The layering deliberately mirrors the API's own **Controller → Form Request �
 
 ```
 src/
-  app/            store, router, slices, typed hooks        (composition root)
+  app/            store, router, paths, slices, typed hooks (composition root)
   config/         runtime configuration (env.js ?? import.meta.env)
   contracts/      TokenStorage, PermissionChecker           (the DI seams)
   types/          DTOs + envelope, pagination, ApiError, ListQuery
@@ -195,7 +195,7 @@ Route guards are `RequireAuth` and `RequirePermission anyOf={[...]}` (`src/compo
 
 `src/forms/rules.ts` holds the primitives (name, email, password, title, role name) mirroring the API's validators; `schemas.ts` composes them per form. Client-side rules exist to reject what the server would reject anyway — the server still owns what the client cannot check (email uniqueness, unknown permission names, the last-role-manager invariant).
 
-`useApiForm(schema, defaultValues, values?)` (`src/hooks/useApiForm.ts`) is the bridge. Form state is typed by the schema's _input_ and `handleSubmit` receives its _output_, so a schema can trim or default on the way through. `applyApiError(error)` projects a failed request onto the form: 422 field errors land on their inputs, anything else becomes a form-level message under `root`. The optional third argument is React Hook Form's `values` — use it for a form whose subject loads asynchronously. **Do not reset from an effect instead:** that lands _after_ the field is on screen and can overwrite a value the user has already begun typing (this was a real bug).
+`useApiForm(schema, defaultValues, values?)` (`src/hooks/useApiForm.ts`) is the bridge. Form state is typed by the schema's _input_ and `handleSubmit` receives its _output_, so a schema can trim or default on the way through. `applyApiError(error)` projects a failed request onto the form: 422 field errors land on their inputs, anything else becomes a form-level message under `root`. The optional third argument is React Hook Form's `values` — use it for a form whose subject loads asynchronously. **Do not reset from an effect instead:** that lands _after_ the field is on screen and can overwrite a value the user has already begun typing (this was a real bug). `onSubmitHandler(onSubmit)` is the `<form>`'s own `onSubmit` — `handleSubmit` returns a promise an element handler may not return, and every form had written the same `void`-wrapping around it.
 
 **Passwords.** Create forms (register, admin user-create) ask for `password` + `password_confirm` and reject a mismatch on the confirmation field. Edit forms (profile, user detail) add a `change_password` checkbox, and **that checkbox is the only switch, for validation and for sending alike**:
 
@@ -214,7 +214,7 @@ The `superRefine` returns immediately while the flag is off, and `toUserPayload(
 
 ### Routing and screens
 
-The route table is `src/app/router.tsx`; permission gates are declared once per audience as layout routes rather than repeated inside screens. **38 of the API's 41 operations are used** (the `PATCH` aliases are skipped deliberately — they are identical to `PUT`). The three that are not are `GET /metrics`, `GET /docs` and `GET /docs/openapi.yaml`: a Prometheus scrape target and the documentation site, which are operator surface that happens to share a host. They are listed in `NOT_CALLED` in `tests/contract/endpoints.test.ts` — **the one exemption in an otherwise exhaustive check**, so an operation a client could sensibly call belongs in a repository instead:
+The route table is `src/app/router.tsx`; permission gates are declared once per audience as layout routes rather than repeated inside screens. **Every address comes from `src/app/paths.ts`** — `ROUTES` holds the patterns the table declares and `paths` builds the filled-in address from them, so a `Link`, a `navigate` or a breadcrumb never spells a URL out for itself. A route that moves then cannot keep being linked to at its old address; `AlbumPolicy.albumsCrumb()` exists because two screens each spelled `/albums` out and stopped agreeing. A detail screen reads its id with `useNumericParam()` (`src/hooks/`), which returns the id and the `skip` that keeps `/albums/NaN` from being requested — one answer, so no screen can take the first without the second. **38 of the API's 41 operations are used** (the `PATCH` aliases are skipped deliberately — they are identical to `PUT`). The three that are not are `GET /metrics`, `GET /docs` and `GET /docs/openapi.yaml`: a Prometheus scrape target and the documentation site, which are operator surface that happens to share a host. They are listed in `NOT_CALLED` in `tests/contract/endpoints.test.ts` — **the one exemption in an otherwise exhaustive check**, so an operation a client could sensibly call belongs in a repository instead:
 
 | Screen                                | Endpoints                                                                                                                       |
 | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
@@ -245,9 +245,10 @@ The route table is `src/app/router.tsx`; permission gates are declared once per 
 
 ### UI conventions
 
-- **Dialogs mount only while open.** `AlbumFormDialog`, `PhotoUploadDialog`, `UserFormDialog` and `AlbumDeleteDialog` return `null` when closed and render an inner component otherwise, so each open starts from fresh form state. Do not reintroduce a resetting effect.
+- **Dialogs mount only while open.** `AlbumFormDialog`, `PhotoUploadDialog`, `UserFormDialog` and the four delete dialogs return `null` when closed and render an inner component otherwise, so each open starts from fresh form state. Do not reintroduce a resetting effect.
+- **A delete is a dialog component, never spelled out in a page.** `AlbumDeleteDialog`, `PhotoDeleteDialog`, `UserDeleteDialog` and `RoleDeleteDialog` each own the pending record, the mutation, the reporting and the confirmation copy; a list screen holds only `useState<T | null>` and renders one. Adding a fifth resource means a fifth dialog, not a `ConfirmDialog` inside the page.
 - **Bootstrap's JavaScript is deliberately unused.** It manipulates the DOM directly, which fights React for ownership of the same nodes and makes dialogs awkward to assert on. `Modal`, `ConfirmDialog` and the navbar dropdown are React components using Bootstrap's markup and CSS only; the account menu implements its own outside-click and Escape dismissal.
-- **One modal shell, one form shell.** `Modal` owns the backdrop, the centring and Escape dismissal; `ConfirmDialog` is built _on_ it rather than repeating it. `FormModal` adds the header, the Cancel/submit footer and the `<form>`, so an editing dialog declares its fields and its wording only.
+- **One modal shell, one form shell.** `Modal` owns the backdrop, the centring, Escape dismissal, the focus trap — and `ModalHeader`/`ModalCancelButton`, the title bar and the way out that both shells render. `ConfirmDialog` and `FormModal` are built _on_ it rather than repeating any of that; `FormModal` adds the submit control and the `<form>`, so an editing dialog declares its fields and its wording only.
 - **Mutations report through `useMutationAction`.** `run(promise, { success, failure, onDone })` replaced the same try/await/toast/catch written out in seven screens. The wording stays at the call site — only the shape is shared — and `failure` is a fallback: a meaningful server message, such as a 409 naming the invariant that refused, still reaches the user verbatim.
 - **A selection being edited is `useToggleSelection`.** It starts from what the server says and becomes local state only once touched, so a refetch never overwrites an edit in progress. The role composer and the role assignment screen share it.
 - **Breadcrumbs appear on nested pages only** (album, photo, user, user roles, role editor) via `PageHeader`'s `breadcrumbs` prop. Pages supply their own trail because only they know a record's name. The album's parent depends on the caller: _My albums_ when owned, _All albums_ when they can list all, and **no link at all** otherwise — a crumb that answers 403 is worse than none.
@@ -291,7 +292,7 @@ Never read `import.meta.env` directly outside `src/config/` — a value baked at
 
 ## Testing Conventions
 
-Four suites, mirroring the API's own split plus a contract suite. **534 Vitest tests** across 49 files (unit, contract, functional) at **100% coverage — lines, branches, functions and statements alike** — plus **31 Playwright specs**.
+Four suites, mirroring the API's own split plus a contract suite. **547 Vitest tests** across 50 files (unit, contract, functional) at **100% coverage — lines, branches, functions and statements alike** — plus **31 Playwright specs**.
 
 **Work test-first.** The 100% floor is enforced, not aspirational, so there is no "add tests later": an uncovered line fails the build on the commit that introduced it. Which form of test-first depends on what you are doing:
 

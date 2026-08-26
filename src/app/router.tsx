@@ -15,6 +15,8 @@ import { VerifyEmailPage } from '@/pages/auth/VerifyEmailPage'
 import { PhotoDetailPage } from '@/pages/photos/PhotoDetailPage'
 import { PERMISSIONS } from '@/services'
 
+import { paths, ROUTES } from './paths'
+
 /*
  * The privileged screens are split out of the initial bundle.
  *
@@ -58,60 +60,60 @@ const PermissionsPage = lazy(async () => ({
 export function AppRoutes() {
   return (
     <Routes>
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="/register" element={<RegisterPage />} />
+      <Route path={ROUTES.login} element={<LoginPage />} />
+      <Route path={ROUTES.register} element={<RegisterPage />} />
 
       {/*
        * Public, like the endpoints behind them: a locked-out user has no
        * session to authenticate with, and a confirmation link has to open in
        * whichever browser the message was read in.
        */}
-      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-      <Route path="/reset-password" element={<ResetPasswordPage />} />
-      <Route path="/verify-email" element={<VerifyEmailPage />} />
+      <Route path={ROUTES.forgotPassword} element={<ForgotPasswordPage />} />
+      <Route path={ROUTES.resetPassword} element={<ResetPasswordPage />} />
+      <Route path={ROUTES.verifyEmail} element={<VerifyEmailPage />} />
 
       <Route element={<RequireAuth />}>
         <Route element={<AppLayout />}>
-          <Route index element={<Navigate to="/albums" replace />} />
+          <Route index element={<Navigate to={paths.myAlbums} replace />} />
 
-          <Route path="/albums" element={<MyAlbumsPage />} />
-          <Route path="/albums/:albumId" element={<AlbumDetailPage />} />
-          <Route path="/albums/:albumId/photos/:photoId" element={<PhotoDetailPage />} />
+          <Route path={ROUTES.myAlbums} element={<MyAlbumsPage />} />
+          <Route path={ROUTES.album} element={<AlbumDetailPage />} />
+          <Route path={ROUTES.photo} element={<PhotoDetailPage />} />
 
           <Route element={<RequirePermission anyOf={[PERMISSIONS.albumIndexAny]} />}>
-            <Route path="/all-albums" element={<AllAlbumsPage />} />
+            <Route path={ROUTES.allAlbums} element={<AllAlbumsPage />} />
           </Route>
 
           <Route element={<RequirePermission anyOf={[PERMISSIONS.userIndexAny]} />}>
-            <Route path="/users" element={<UsersPage />} />
+            <Route path={ROUTES.users} element={<UsersPage />} />
           </Route>
 
           <Route element={<RequirePermission anyOf={[PERMISSIONS.userViewAny]} />}>
-            <Route path="/users/:userId" element={<UserDetailPage />} />
+            <Route path={ROUTES.user} element={<UserDetailPage />} />
           </Route>
 
           <Route element={<RequirePermission anyOf={[PERMISSIONS.roleAssign]} />}>
-            <Route path="/users/:userId/roles" element={<UserRolesPage />} />
+            <Route path={ROUTES.userRoles} element={<UserRolesPage />} />
           </Route>
 
           <Route element={<RequirePermission anyOf={[PERMISSIONS.roleIndex]} />}>
-            <Route path="/roles" element={<RolesPage />} />
+            <Route path={ROUTES.roles} element={<RolesPage />} />
           </Route>
 
           <Route element={<RequirePermission anyOf={[PERMISSIONS.roleManage]} />}>
-            <Route path="/roles/new" element={<RoleEditorPage />} />
+            <Route path={ROUTES.newRole} element={<RoleEditorPage />} />
           </Route>
 
           <Route element={<RequirePermission anyOf={[PERMISSIONS.roleView]} />}>
-            <Route path="/roles/:roleId" element={<RoleEditorPage />} />
+            <Route path={ROUTES.role} element={<RoleEditorPage />} />
           </Route>
 
           <Route element={<RequirePermission anyOf={[PERMISSIONS.permissionIndex]} />}>
-            <Route path="/permissions" element={<PermissionsPage />} />
+            <Route path={ROUTES.permissions} element={<PermissionsPage />} />
           </Route>
 
-          <Route path="/profile" element={<ProfilePage />} />
-          <Route path="/health" element={<HealthPage />} />
+          <Route path={ROUTES.profile} element={<ProfilePage />} />
+          <Route path={ROUTES.health} element={<HealthPage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Route>
       </Route>

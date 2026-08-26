@@ -9,6 +9,7 @@ import {
 } from '@/app/authSlice'
 import { useAppDispatch, useAppSelector } from '@/app/hooks'
 import { notifySuccess } from '@/app/notificationsSlice'
+import { paths } from '@/app/paths'
 import { toStoredTokens } from '@/contracts'
 import {
   useLoginMutation,
@@ -86,7 +87,7 @@ export function useAuth() {
   const signOut = useCallback(
     async (everywhere = false, notice?: string): Promise<void> => {
       await endSession(everywhere, notice)
-      void navigate('/login', { replace: true })
+      void navigate(paths.login, { replace: true })
     },
     [endSession, navigate],
   )

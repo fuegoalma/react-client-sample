@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 
+import { paths } from '@/app/paths'
 import { DateTime } from '@/services'
 import type { Photo } from '@/types'
 
@@ -30,10 +31,7 @@ export function PhotoCard({ photo, albumId, canEdit, canDelete, onDelete }: Phot
         <p className="photoCard__meta">{DateTime.toDate(photo.created_at)}</p>
 
         <div className="photoCard__actions">
-          <Link
-            className="btn btn-sm btn-outline-secondary"
-            to={`/albums/${albumId}/photos/${photo.id}`}
-          >
+          <Link className="btn btn-sm btn-outline-secondary" to={paths.photo(albumId, photo.id)}>
             {canEdit ? 'Edit' : 'View'}
           </Link>
           {canDelete && (

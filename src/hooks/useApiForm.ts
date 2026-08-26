@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useCallback } from 'react'
+import { useCallback, type SyntheticEvent } from 'react'
 import {
   useForm,
   type DefaultValues,
@@ -51,6 +51,17 @@ export interface ApiFormReturn<
    * it, not in a toast the user has to read away from the field.
    */
   readonly submit: <T>(request: Promise<T>, report?: SubmitReport<T>) => Promise<void>
+  /**
+   * The `<form>`'s own `onSubmit`.
+   *
+   * `handleSubmit` returns a promise the element's handler may not return, so
+   * every form wrote `(event) => void handleSubmit(onSubmit)(event)` — the same
+   * workaround for the same lint rule, twelve times over. It is a fact about
+   * react-hook-form, not a decision any screen makes, so it lives here.
+   */
+  readonly onSubmitHandler: (
+    handler: (values: TValues) => Promise<void>,
+  ) => (event: SyntheticEvent<HTMLFormElement>) => void
 }
 
 /**
@@ -126,5 +137,15 @@ export function useApiForm<TInput extends FieldValues, TValues extends FieldValu
     [applyApiError, reportSuccess],
   )
 
-  return Object.assign(form, { applyApiError, submit })
+  const { handleSubmit } = form
+
+  const onSubmitHandler = useCallback(
+    (handler: (values: TValues) => Promise<void>) =>
+      (event: SyntheticEvent<HTMLFormElement>): void => {
+        void handleSubmit(handler)(event)
+      },
+    [handleSubmit],
+  )
+
+  return Object.assign(form, { applyApiError, submit, onSubmitHandler })
 }

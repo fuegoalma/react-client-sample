@@ -11,8 +11,8 @@ import type { ApiError } from '@/types'
 
 import { toApiError } from './errors'
 
-/** The slice of state the transport needs. Declared locally to avoid a cycle. */
-interface AuthAwareState {
+/** The slice of state the transport needs. Declared here to avoid a cycle. */
+export interface AuthAwareState {
   readonly auth: AuthState
 }
 

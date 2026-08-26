@@ -13,7 +13,7 @@ import type {
   UserWithAlbums,
 } from '@/types'
 
-import { baseApi, LIST_ID } from './baseApi'
+import { baseApi, listTags, memberTags, LIST_ID } from './baseApi'
 
 export const usersApi = baseApi.injectEndpoints({
   endpoints: (build) => ({
@@ -35,10 +35,7 @@ export const usersApi = baseApi.injectEndpoints({
         method: 'GET',
         params: ListQueryBuilder.toParams(params),
       }),
-      providesTags: (result) => [
-        { type: 'User' as const, id: LIST_ID },
-        ...(result?.items ?? []).map((user) => ({ type: 'User' as const, id: user.id })),
-      ],
+      providesTags: (result) => listTags('User', result),
     }),
 
     user: build.query<UserWithAlbums, number>({
@@ -54,18 +51,13 @@ export const usersApi = baseApi.injectEndpoints({
     updateUser: build.mutation<User, { id: number; body: UserUpdateRequest }>({
       query: ({ id, body }) => ({ url: `/users/${id}`, method: 'PUT', body }),
       // Updating yourself changes /users/me too, so refresh it unconditionally.
-      invalidatesTags: (_result, _error, { id }) => [
-        { type: 'User', id },
-        { type: 'User', id: LIST_ID },
-        'Me',
-      ],
+      invalidatesTags: (_result, _error, { id }) => [...memberTags('User', id), 'Me'],
     }),
 
     deleteUser: build.mutation<null, number>({
       query: (id) => ({ url: `/users/${id}`, method: 'DELETE' }),
       invalidatesTags: (_result, _error, id) => [
-        { type: 'User', id },
-        { type: 'User', id: LIST_ID },
+        ...memberTags('User', id),
         { type: 'Album', id: LIST_ID },
       ],
     }),

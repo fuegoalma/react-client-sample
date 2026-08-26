@@ -9,6 +9,7 @@ import {
   fieldClass,
 } from '@/components'
 import { resetPasswordSchema, type ResetPasswordValues } from '@/forms'
+import { paths } from '@/app/paths'
 import { useApiForm } from '@/hooks'
 import { useResetPasswordMutation } from '@/repositories'
 
@@ -28,23 +29,22 @@ export function ResetPasswordPage() {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
 
-  const form = useApiForm(resetPasswordSchema, {
+  const {
+    register,
+    onSubmitHandler,
+    submit,
+    formState: { errors },
+  } = useApiForm(resetPasswordSchema, {
     token: searchParams.get('token') ?? '',
     password: '',
     password_confirm: '',
   })
-  const {
-    register,
-    handleSubmit,
-    submit,
-    formState: { errors },
-  } = form
 
   const onSubmit = (values: ResetPasswordValues): Promise<void> =>
     submit(resetPassword(values).unwrap(), {
       success: 'Password changed. Sign in with your new password.',
       onDone: () => {
-        void navigate('/login', { replace: true })
+        void navigate(paths.login, { replace: true })
       },
     })
 
@@ -52,9 +52,9 @@ export function ResetPasswordPage() {
     <AuthLayout
       title="Choose a new password"
       lead="Paste the token from the email and pick a new password."
-      footer={<Link to="/forgot-password">Need another token?</Link>}
+      footer={<Link to={paths.forgotPassword}>Need another token?</Link>}
     >
-      <form onSubmit={(event) => void handleSubmit(onSubmit)(event)} noValidate>
+      <form onSubmit={onSubmitHandler(onSubmit)} noValidate>
         <FormAlert error={errors.root} />
 
         <FormField

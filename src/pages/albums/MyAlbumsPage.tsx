@@ -5,6 +5,7 @@ import { AlbumDeleteDialog } from '@/components/albums/AlbumDeleteDialog'
 import { AlbumFormDialog } from '@/components/albums/AlbumFormDialog'
 import { ALBUM_BASE_COLUMNS } from '@/components/albums/albumColumns'
 import { ListScreen, PageHeader, type Column } from '@/components'
+import { paths } from '@/app/paths'
 import { albumListSpec } from '@/forms'
 import { useListQuery } from '@/hooks'
 import { useMyAlbumsQuery, usePrefetchAlbum } from '@/repositories'
@@ -32,7 +33,7 @@ export function MyAlbumsPage() {
       className: 'text-end',
       render: (album) => (
         <div className="dataTable__actions">
-          <Link className="btn btn-sm btn-outline-secondary" to={`/albums/${album.id}`}>
+          <Link className="btn btn-sm btn-outline-secondary" to={paths.album(album.id)}>
             Open
           </Link>
           <button

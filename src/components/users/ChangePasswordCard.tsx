@@ -22,7 +22,7 @@ export function ChangePasswordCard() {
 
   const {
     register,
-    handleSubmit,
+    onSubmitHandler,
     submit,
     formState: { errors },
   } = useApiForm(changePasswordSchema, {
@@ -47,7 +47,7 @@ export function ChangePasswordCard() {
         This signs you out everywhere, including here — sign in again with the new password.
       </p>
 
-      <form onSubmit={(event) => void handleSubmit(onSubmit)(event)} noValidate>
+      <form onSubmit={onSubmitHandler(onSubmit)} noValidate>
         <FormAlert error={errors.root} />
 
         <FormField id="current-password" label="Current password" error={errors.current_password}>

@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 
+import { paths } from '@/app/paths'
 import type { Column } from '@/components/ui'
 import { DateTime } from '@/services'
 import type { Album } from '@/types'
@@ -17,7 +18,7 @@ export const ALBUM_BASE_COLUMNS: readonly Column<Album>[] = [
     key: 'title',
     header: 'Title',
     sortAttribute: 'title',
-    render: (album) => <Link to={`/albums/${album.id}`}>{album.title}</Link>,
+    render: (album) => <Link to={paths.album(album.id)}>{album.title}</Link>,
   },
   {
     key: 'created_at',

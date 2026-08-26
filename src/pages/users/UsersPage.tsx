@@ -1,11 +1,13 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 
-import { ConfirmDialog, ListScreen, PageHeader, type Column } from '@/components'
+import { ListScreen, PageHeader, type Column } from '@/components'
+import { UserDeleteDialog } from '@/components/users/UserDeleteDialog'
 import { UserFormDialog } from '@/components/users/UserFormDialog'
+import { paths } from '@/app/paths'
 import { userListSpec } from '@/forms'
-import { useListQuery, useMutationAction, usePermissions } from '@/hooks'
-import { useDeleteUserMutation, useUsersQuery, usePrefetchUser } from '@/repositories'
+import { useListQuery, usePermissions } from '@/hooks'
+import { useUsersQuery, usePrefetchUser } from '@/repositories'
 import { DateTime } from '@/services'
 import type { User } from '@/types'
 
@@ -15,25 +17,12 @@ export function UsersPage() {
   const prefetchUser = usePrefetchUser()
   const { data, error, isLoading, isFetching } = useUsersQuery(list.query)
   const { users: policy } = usePermissions()
-  const { run } = useMutationAction()
 
-  const [deleteUser, { isLoading: isDeleting }] = useDeleteUserMutation()
   const [creating, setCreating] = useState(false)
   const [deleting, setDeleting] = useState<User | null>(null)
 
   const canCreate = policy.canCreate()
   const canAssignRoles = policy.canAssignRoles()
-
-  const remove = (user: User): Promise<void> =>
-    run(deleteUser(user.id).unwrap(), {
-      success: `${user.first_name} ${user.last_name} was deleted.`,
-      // A 409 here means the last-role-manager invariant refused the delete;
-      // the API's own wording explains it best, and `run` surfaces it.
-      failure: 'The user could not be deleted.',
-      onDone: () => {
-        setDeleting(null)
-      },
-    })
 
   const columns: readonly Column<User>[] = [
     {
@@ -48,7 +37,7 @@ export function UsersPage() {
       header: 'Name',
       sortAttribute: 'last_name',
       render: (user) => (
-        <Link to={`/users/${user.id}`}>
+        <Link to={paths.user(user.id)}>
           {user.first_name} {user.last_name}
           {policy.isSelf(user.id) && <span className="badge text-bg-light ms-2">You</span>}
         </Link>
@@ -68,11 +57,11 @@ export function UsersPage() {
       className: 'text-end',
       render: (user) => (
         <div className="dataTable__actions">
-          <Link className="btn btn-sm btn-outline-secondary" to={`/users/${user.id}`}>
+          <Link className="btn btn-sm btn-outline-secondary" to={paths.user(user.id)}>
             Open
           </Link>
           {canAssignRoles && (
-            <Link className="btn btn-sm btn-outline-secondary" to={`/users/${user.id}/roles`}>
+            <Link className="btn btn-sm btn-outline-secondary" to={paths.userRoles(user.id)}>
               Roles
             </Link>
           )}
@@ -135,25 +124,12 @@ export function UsersPage() {
         }}
       />
 
-      <ConfirmDialog
-        open={deleting !== null}
-        title="Delete user"
-        confirmLabel="Delete"
-        isBusy={isDeleting}
-        onConfirm={() => {
-          if (deleting !== null) void remove(deleting)
-        }}
-        onCancel={() => {
+      <UserDeleteDialog
+        user={deleting}
+        onClose={() => {
           setDeleting(null)
         }}
-      >
-        <p className="mb-0">
-          <strong>
-            {deleting?.first_name} {deleting?.last_name}
-          </strong>{' '}
-          will be deleted along with their albums, photos and files. This cannot be undone.
-        </p>
-      </ConfirmDialog>
+      />
     </>
   )
 }

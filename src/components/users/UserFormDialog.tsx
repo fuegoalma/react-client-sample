@@ -25,7 +25,7 @@ function CreateUserForm({ onClose }: Omit<UserFormDialogProps, 'open'>) {
 
   const {
     register,
-    handleSubmit,
+    onSubmitHandler,
     submit,
     formState: { errors },
   } = useApiForm(userCreateSchema, {
@@ -49,7 +49,7 @@ function CreateUserForm({ onClose }: Omit<UserFormDialogProps, 'open'>) {
       submitLabel="Create user"
       busyLabel="Creating…"
       isBusy={isLoading}
-      onSubmit={(event) => void handleSubmit(onSubmit)(event)}
+      onSubmit={onSubmitHandler(onSubmit)}
       onClose={onClose}
     >
       <FormAlert error={errors.root} />

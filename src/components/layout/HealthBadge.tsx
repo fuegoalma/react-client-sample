@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 
+import { paths } from '@/app/paths'
 import { useHealthQuery } from '@/repositories'
 
 const POLL_INTERVAL_MS = 30_000
@@ -17,7 +18,7 @@ export function HealthBadge() {
   const label = { ok: 'API healthy', error: 'API unavailable', unknown: 'Checking API…' }[state]
 
   return (
-    <Link to="/health" className={`healthBadge healthBadge--${state} text-decoration-none`}>
+    <Link to={paths.health} className={`healthBadge healthBadge--${state} text-decoration-none`}>
       <span className="healthBadge__dot" aria-hidden="true" />
       <span>{label}</span>
     </Link>

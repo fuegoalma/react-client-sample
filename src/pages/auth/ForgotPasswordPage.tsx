@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 
 import { AuthLayout, FormAlert, FormField, SubmitButton, fieldClass } from '@/components'
 import { forgotPasswordSchema, type ForgotPasswordValues } from '@/forms'
+import { paths } from '@/app/paths'
 import { useApiForm } from '@/hooks'
 import { useForgotPasswordMutation } from '@/repositories'
 
@@ -18,13 +19,12 @@ export function ForgotPasswordPage() {
   const [requestReset, { isLoading }] = useForgotPasswordMutation()
   const [sent, setSent] = useState(false)
 
-  const form = useApiForm(forgotPasswordSchema, { email: '' })
   const {
     register,
-    handleSubmit,
+    onSubmitHandler,
     submit,
     formState: { errors },
-  } = form
+  } = useApiForm(forgotPasswordSchema, { email: '' })
 
   const onSubmit = (values: ForgotPasswordValues): Promise<void> =>
     submit(requestReset(values).unwrap(), {
@@ -37,19 +37,19 @@ export function ForgotPasswordPage() {
     <AuthLayout
       title="Reset your password"
       lead="We will email you a token to set a new one with."
-      footer={<Link to="/login">Back to sign in</Link>}
+      footer={<Link to={paths.login}>Back to sign in</Link>}
     >
       {sent ? (
         <>
           <div className="alert alert-success" role="status">
             If that address belongs to an account, a token is on its way. It expires in an hour.
           </div>
-          <Link to="/reset-password" className="btn btn-primary w-100">
+          <Link to={paths.resetPassword} className="btn btn-primary w-100">
             I have a token
           </Link>
         </>
       ) : (
-        <form onSubmit={(event) => void handleSubmit(onSubmit)(event)} noValidate>
+        <form onSubmit={onSubmitHandler(onSubmit)} noValidate>
           <FormAlert error={errors.root} />
 
           <FormField id="forgot-email" label="Email" error={errors.email}>

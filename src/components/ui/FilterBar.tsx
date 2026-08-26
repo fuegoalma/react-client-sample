@@ -27,6 +27,10 @@ export function FilterBar({ filters, values, onApply, onReset, isFiltered }: Fil
     setDraft({ ...values })
   }
 
+  const edit = (key: string, value: string): void => {
+    setDraft((current) => ({ ...current, [key]: value }))
+  }
+
   return (
     <form
       className="filterBar"
@@ -52,7 +56,7 @@ export function FilterBar({ filters, values, onApply, onReset, isFiltered }: Fil
                 className="form-select form-select-sm"
                 value={value}
                 onChange={(event) => {
-                  setDraft((current) => ({ ...current, [filter.key]: event.target.value }))
+                  edit(filter.key, event.target.value)
                 }}
               >
                 {filter.options.map((option) => (
@@ -69,7 +73,7 @@ export function FilterBar({ filters, values, onApply, onReset, isFiltered }: Fil
                 placeholder={filter.placeholder}
                 value={value}
                 onChange={(event) => {
-                  setDraft((current) => ({ ...current, [filter.key]: event.target.value }))
+                  edit(filter.key, event.target.value)
                 }}
               />
             )}

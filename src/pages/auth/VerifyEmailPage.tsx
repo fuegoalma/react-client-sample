@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 
 import { AuthLayout, FormAlert, FormField, SubmitButton, fieldClass } from '@/components'
 import { verifyEmailSchema, type VerifyEmailValues } from '@/forms'
+import { paths } from '@/app/paths'
 import { useApiForm } from '@/hooks'
 import { useVerifyEmailMutation } from '@/repositories'
 
@@ -22,13 +23,12 @@ export function VerifyEmailPage() {
   const [searchParams] = useSearchParams()
   const [confirmed, setConfirmed] = useState(false)
 
-  const form = useApiForm(verifyEmailSchema, { token: searchParams.get('token') ?? '' })
   const {
     register,
-    handleSubmit,
+    onSubmitHandler,
     submit,
     formState: { errors },
-  } = form
+  } = useApiForm(verifyEmailSchema, { token: searchParams.get('token') ?? '' })
 
   const onSubmit = (values: VerifyEmailValues): Promise<void> =>
     submit(verifyEmail(values).unwrap(), {
@@ -41,14 +41,14 @@ export function VerifyEmailPage() {
     <AuthLayout
       title="Confirm your email"
       lead="Paste the token from the message we sent you."
-      footer={<Link to="/login">Back to sign in</Link>}
+      footer={<Link to={paths.login}>Back to sign in</Link>}
     >
       {confirmed ? (
         <div className="alert alert-success" role="status">
           Your email address is confirmed.
         </div>
       ) : (
-        <form onSubmit={(event) => void handleSubmit(onSubmit)(event)} noValidate>
+        <form onSubmit={onSubmitHandler(onSubmit)} noValidate>
           <FormAlert error={errors.root} />
 
           <FormField id="verify-token" label="Token" error={errors.token}>

@@ -1,6 +1,6 @@
 import type { ReactNode, SyntheticEvent } from 'react'
 
-import { Modal } from './Modal'
+import { Modal, ModalCancelButton, ModalHeader } from './Modal'
 import { SubmitButton } from './SubmitButton'
 
 interface FormModalProps {
@@ -33,17 +33,12 @@ export function FormModal({
   return (
     <Modal title={title} onClose={onClose}>
       <form className="modal-content" onSubmit={onSubmit} noValidate>
-        <div className="modal-header">
-          <h2 className="modal-title h5">{title}</h2>
-          <button type="button" className="btn-close" aria-label="Close" onClick={onClose} />
-        </div>
+        <ModalHeader title={title} onClose={onClose} />
 
         <div className="modal-body">{children}</div>
 
         <div className="modal-footer">
-          <button type="button" className="btn btn-outline-secondary" onClick={onClose}>
-            Cancel
-          </button>
+          <ModalCancelButton onClick={onClose} />
           <SubmitButton
             isBusy={isBusy}
             label={submitLabel}

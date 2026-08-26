@@ -50,7 +50,7 @@ export function UserUpdateForm({
 
   const {
     register,
-    handleSubmit,
+    onSubmitHandler,
     reset,
     watch,
     submit,
@@ -78,7 +78,7 @@ export function UserUpdateForm({
   }
 
   return (
-    <form onSubmit={(event) => void handleSubmit(onSubmit)(event)} noValidate>
+    <form onSubmit={onSubmitHandler(onSubmit)} noValidate>
       <FormAlert error={errors.root} />
 
       <div className="row g-2">
