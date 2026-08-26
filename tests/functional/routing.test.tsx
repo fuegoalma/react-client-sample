@@ -87,6 +87,32 @@ describe('The route table', () => {
 
     expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeInTheDocument()
   })
+
+  /*
+   * The account-recovery screens must be reachable with no session at all —
+   * which is the whole point of them. Wire one inside `RequireAuth` by mistake
+   * and every other test still passes, because the page tests render the
+   * component directly rather than through this table; the only symptom would
+   * be a locked-out user bounced to the sign-in screen they cannot get past.
+   */
+  it.each([
+    ['/forgot-password', 'Reset your password'],
+    ['/reset-password', 'Choose a new password'],
+    ['/verify-email', 'Confirm your email'],
+  ])('opens %s without a session', async (route, heading) => {
+    renderWithProviders(<AppRoutes />, { route, authenticated: false })
+
+    expect(await screen.findByRole('heading', { name: heading })).toBeInTheDocument()
+  })
+
+  it('leaves the recovery screens outside the application shell', async () => {
+    // They render in `AuthLayout`, not `AppLayout`: there is no navigation to
+    // show someone who is not signed in.
+    renderWithProviders(<AppRoutes />, { route: '/forgot-password', authenticated: false })
+
+    await screen.findByRole('heading', { name: 'Reset your password' })
+    expect(screen.queryByRole('link', { name: 'My albums' })).not.toBeInTheDocument()
+  })
 })
 
 describe('The application root', () => {
