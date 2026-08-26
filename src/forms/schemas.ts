@@ -4,6 +4,7 @@ import {
   descriptionRule,
   emailRule,
   hasAllowedImageExtension,
+  MAX_UPLOAD_BYTES,
   nameRule,
   optionalText,
   PASSWORD_MISMATCH,
@@ -134,7 +135,8 @@ export const photoUploadSchema = z.object({
     .refine(
       (file) => hasAllowedImageExtension(file.name),
       'Allowed formats: jpg, jpeg, png, webp, gif, avif.',
-    ),
+    )
+    .refine((file) => file.size <= MAX_UPLOAD_BYTES, 'That file is larger than 10 MB.'),
 })
 export type PhotoUploadValues = z.infer<typeof photoUploadSchema>
 

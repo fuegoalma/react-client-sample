@@ -6,6 +6,7 @@ import {
   forgotPasswordSchema,
   hasAllowedImageExtension,
   loginSchema,
+  MAX_UPLOAD_BYTES,
   PASSWORD_MISMATCH,
   photoUploadSchema,
   registerSchema,
@@ -347,6 +348,21 @@ describe('photoUploadSchema', () => {
   it('is case-insensitive about the extension', () => {
     expect(hasAllowedImageExtension('PHOTO.JPEG')).toBe(true)
     expect(hasAllowedImageExtension('photo')).toBe(false)
+  })
+
+  it('refuses a file larger than the API stores, before uploading it', () => {
+    // Sending it anyway costs the upload and comes back a 422 — or, past PHP's
+    // own limit, a 413 from a body the application never even sees.
+    expect(
+      photoUploadSchema.safeParse({ title: 'x', file: file('a.png', MAX_UPLOAD_BYTES + 1) })
+        .success,
+    ).toBe(false)
+  })
+
+  it('accepts one of exactly the maximum size', () => {
+    expect(
+      photoUploadSchema.safeParse({ title: 'x', file: file('a.png', MAX_UPLOAD_BYTES) }).success,
+    ).toBe(true)
   })
 })
 

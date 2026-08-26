@@ -82,6 +82,17 @@ export const PASSWORD_MISMATCH_ISSUE = {
 /** Extensions the API accepts; anything else is rejected before upload. */
 export const ALLOWED_IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'avif'] as const
 
+/**
+ * The largest file the API stores, in bytes (10 MiB).
+ *
+ * Checking it here saves a pointless upload, and the two ways the API refuses
+ * one are worth knowing apart: a file over this size is a 422 on the `file`
+ * field, while a *body* over PHP's own limit never reaches the application at
+ * all and comes back as a 413. Both are handled, but neither is a good
+ * experience compared with saying so before the bytes leave.
+ */
+export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+
 export function hasAllowedImageExtension(fileName: string): boolean {
   // Indexing the split parts would leave a branch for "no last element" that a
   // non-empty split can never take; a name with no dot has no extension at all.

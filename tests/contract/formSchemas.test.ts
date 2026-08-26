@@ -11,6 +11,7 @@ import {
   changePasswordSchema,
   forgotPasswordSchema,
   loginSchema,
+  MAX_UPLOAD_BYTES,
   photoUpdateSchema,
   photoUploadSchema,
   registerSchema,
@@ -209,5 +210,14 @@ describe('The upload form accepts the extensions the endpoint documents', () => 
     expect(documented?.[1]?.split(',').map((extension) => extension.trim())).toEqual([
       ...ALLOWED_IMAGE_EXTENSIONS,
     ])
+  })
+
+  it('refuses a file at the size the endpoint states, and no other', () => {
+    // Stated in prose too. Left to a literal in `rules.ts`, the limit would
+    // simply stop matching the day the API raised it, and the only symptom
+    // would be uploads the server rejects after the wait.
+    const documented = /at most (\d+) bytes/.exec(PHOTO_UPLOAD?.description ?? '')
+
+    expect(Number(documented?.[1])).toBe(MAX_UPLOAD_BYTES)
   })
 })
