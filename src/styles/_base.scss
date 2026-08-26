@@ -42,11 +42,31 @@ body {
     color: var(--bs-secondary-color);
     text-decoration: none;
 
+    // Dark mode drops the colour change — see components/_theme.scss for why.
     &:hover {
       color: var(--bs-primary);
       text-decoration: underline;
     }
   }
+}
+
+// `.badge.text-bg-light.text-secondary` ("system", "Live") is `--bs-light-rgb`
+// (#f8f9fa) under `--bs-secondary-rgb` (#6c757d) text — legible on its own, but
+// #f8f9fa is next to indistinguishable from this page's own near-white
+// background, so the badge itself disappears. Light mode only: dark mode's
+// version of the same classes already stands out against the near-black page,
+// and is corrected separately, for contrast rather than visibility, in
+// components/_theme.scss.
+[data-bs-theme='light'] .badge.text-bg-light.text-secondary {
+  background-color: var(--bs-secondary-bg) !important;
+  color: var(--bs-secondary-text-emphasis) !important;
+}
+
+// `currentColor` rather than a second themed variable, so the outline always
+// matches whichever text colour the rule above (or the dark-mode one in
+// components/_theme.scss) resolved to, in both themes, from one declaration.
+.badge.text-bg-light.text-secondary {
+  border: 1px solid currentcolor;
 }
 
 // A page heading with its actions on the right, used by every screen.
