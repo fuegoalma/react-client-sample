@@ -62,6 +62,29 @@ describe('Signing in', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent(/too many attempts/i)
   })
+
+  it('says how long to wait, from the header rather than a guess', async () => {
+    // Readable only because the API exposes Retry-After to a cross-origin
+    // caller; before it did, this number could not be shown at all.
+    db.rateLimited = true
+    const { user } = renderWithProviders(<LoginPage />, { authenticated: false })
+
+    await user.type(screen.getByLabelText('Email'), 'ada@example.com')
+    await user.type(screen.getByLabelText('Password'), 'secret123')
+    await user.click(screen.getByRole('button', { name: 'Sign in' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/wait 60 seconds/i)
+  })
+
+  it('offers a way out to someone who cannot remember their password', () => {
+    // The only route to recovery from the screen that turns them away.
+    renderWithProviders(<LoginPage />, { authenticated: false })
+
+    expect(screen.getByRole('link', { name: 'Forgot your password?' })).toHaveAttribute(
+      'href',
+      '/forgot-password',
+    )
+  })
 })
 
 describe('Registering', () => {
