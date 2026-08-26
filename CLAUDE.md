@@ -85,8 +85,9 @@ make clean         # remove build output and caches
 # The UI kit, the API contract and the README's screenshots
 make storybook       # the component workshop on :6006 (host)
 make build-storybook
-make sync-spec       # refetch openapi.yaml from a running API, regenerate its types
+make sync-spec       # refetch openapi.yaml from SPEC_URL, regenerate its types
 make spec-verify     # the offline half: do the committed types match the committed spec?
+make spec-drift      # ask SPEC_URL whether that spec has moved (read-only)
 make screenshots     # regenerate the README screenshots from the running stack (host)
 ```
 
@@ -341,7 +342,13 @@ The production image enables `mod_rewrite` (`FallbackResource /index.html`, so a
 
 **CI** — `.github/workflows/ci.yml` runs on every push and pull request: `npm ci`, then the same gates as locally, **in the same order**: code style (`cs-check`), the spec/type check (`spec:verify`), static analysis (`typecheck`), tests (with coverage). Keep the workflow in sync with the `Makefile` targets — they must stay runnable both ways. A second job runs Playwright, and is **skipped unless the `E2E_API_URL` repository variable is set**, because the API is not part of this repository; E2E is local-first via `make test-e2e`.
 
-**Spec drift** — `.github/workflows/spec-drift.yml` is the half of `make sync-spec` that needs the API. Every contract gate reads the _committed_ `tests/contract/openapi.yaml`, so once the API moves they all keep passing against a document nobody serves; this job refetches it daily, regenerates the types, re-runs `typecheck` + `test:contract` against the new document, and uploads the refreshed pair. Like the E2E job it is **gated on a repository variable** (`API_SPEC_URL`) and skips without one. See [ADR 7](docs/adr/0007-openapi-as-a-checked-oracle.md) for why the document is checked against rather than generated from.
+**Spec drift** — every contract gate reads the _committed_ `tests/contract/openapi.yaml`, so once the API moves they all keep passing against a document nobody serves. `spec:verify` cannot catch that either: it compares the two halves of one snapshot, and they stay consistent with each other long after the document they were taken from has changed. `.github/workflows/spec-drift.yml` is what asks — daily, it refetches the document, regenerates the types, and re-runs `typecheck` + `test:contract` against the new one. It is gated on the `API_SPEC_URL` repository variable, which points at **the API repository's own committed document**, not at a running instance:
+
+```
+https://raw.githubusercontent.com/fuegoalma/yii2-rest-api-sample/master/config/openapi.yaml
+```
+
+That is what makes it work in CI: a hosted runner cannot reach the API on `localhost`, but `config/openapi.yaml` — the file the API serves at `/docs/openapi.yaml` — is under source control in a public repository, and a file needs no server. **This is where spec drift and E2E differ**: the E2E job is gated the same way but genuinely cannot be woken, because it needs an API answering requests rather than a document. `make spec-drift` asks the same question on demand, read-only, where `make sync-spec` overwrites both halves and leaves you to look. Both read `SPEC_URL`, which defaults to that same raw URL — **one source for all three**, so what CI compares against and what you refresh from cannot be two different documents. Override it to ask an instance instead (`make sync-spec SPEC_URL=http://localhost:8084/docs/openapi.yaml`). See [ADR 7](docs/adr/0007-openapi-as-a-checked-oracle.md) for why the document is checked against rather than generated from.
 
 **CD** — `.github/workflows/cd.yml` chains off a green CI on `master` via `workflow_run`, guarded on `conclusion == 'success'` so a red CI never deploys. It builds the `prod` stage with Buildx + GHA cache and **smoke-tests the real image**: Apache serves the shell, falls back to it for a client-side route, and the entrypoint injected the API URL. The release then runs through a `production` GitHub Environment but is **simulated** — this sample provisions no server.
 

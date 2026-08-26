@@ -359,7 +359,7 @@ URL the client issues, read out of the repository and transport sources; each
 length limits against the request body it is transcribed from.
 
 ```bash
-make sync-spec       # refetch openapi.yaml from a running API, regenerate types
+make sync-spec       # refetch openapi.yaml from SPEC_URL, regenerate types
 make spec-verify     # the offline half: do the committed types match that copy?
 make test-contract   # see what moved
 ```

@@ -28,16 +28,47 @@ types. Drift fails `make typecheck` with the offending field named.
 
 `orval` is not used, and the repository layer stays hand-written.
 
-Three gates keep the oracle honest, because a vendored document is a snapshot:
+Four gates keep the oracle honest, because a vendored document is a snapshot:
 
 - `make spec-verify` (`openapi-typescript --check`, part of `make check` and CI)
   holds the committed types to the committed document.
-- `.github/workflows/spec-drift.yml` refetches the live document on a schedule
-  and fails when it has moved.
+- `make spec-drift` asks the source whether that document has moved. It fetches
+  to a temporary file and reports, where `sync-spec` overwrites both halves of
+  the snapshot and leaves you to work out what changed.
 - `dtoShapes.test.ts` asserts that **every** schema in the document is either
   mirrored or listed as deliberately not mirrored.
 - `endpoints.test.ts` asserts the same for operations, in both directions: no
   call the document does not describe, and no operation left unused.
+
+Only the second of those can notice the API itself moving, and the distinction
+matters: `spec-verify` compares the two halves of one snapshot, and the two stay
+consistent with each other indefinitely after the document they were taken from
+has changed. Every other gate reads the vendored copy, so all of them keep
+passing against a document nobody serves any more.
+
+`.github/workflows/spec-drift.yml` automates that check daily. It is gated on the
+`API_SPEC_URL` repository variable, and the URL that variable holds is **the API
+repository's own committed document**, not a running instance:
+
+```
+https://raw.githubusercontent.com/fuegoalma/yii2-rest-api-sample/master/config/openapi.yaml
+```
+
+That is what makes the check possible in CI at all. The API is a separate
+project that runs on `localhost`, and a hosted runner cannot reach it — but the
+document is a file under source control in a public repository, and a file needs
+no server. `config/openapi.yaml` is what the API serves at `/docs/openapi.yaml`,
+so asking GitHub for it and asking a running API for it are the same question.
+
+Spec drift is therefore **not** local-first, and the parallel with the end-to-end
+suite goes only so far: E2E needs a live API answering requests, which no
+variable can conjure, so it stays local. A document does not.
+
+`make spec-drift` is the same check on demand, for the working copy in front of
+you. It and `make sync-spec` both read `SPEC_URL`, which defaults to that same
+raw URL: one source for the daily job, the on-demand check and the refresh, so
+what CI compares against and what a developer refreshes from cannot be two
+different documents. Overriding it asks an instance instead.
 
 ## Consequences
 
