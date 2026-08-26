@@ -52,6 +52,15 @@ export interface ApiError {
   readonly message: string
   /** Populated for 422 responses. */
   readonly fieldErrors: FieldErrors
-  /** Seconds to wait, from the `Retry-After` header of a 429. */
+  /**
+   * Seconds to wait, from the `Retry-After` header of a 429. The API sends the
+   * whole rate-limit window rather than the time actually left, so treat it as
+   * an upper bound.
+   */
   readonly retryAfter?: number
+  /**
+   * The id the API filed this request under in its logs (`X-Request-Id`), for a
+   * bug report to quote. Diagnostics only — never UI copy.
+   */
+  readonly requestId?: string
 }

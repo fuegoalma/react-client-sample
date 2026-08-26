@@ -74,16 +74,38 @@ describe('toApiError', () => {
     expect(error.message).toBe('That file is too large to upload.')
   })
 
-  it('reads Retry-After off a rate-limited response', () => {
+  it('reads Retry-After off a rate-limited response and says how long to wait', () => {
     const error = toApiError(envelope(429, {}), metaWith({ 'Retry-After': '30' }))
+
     expect(error.retryAfter).toBe(30)
+    expect(error.message).toBe('Too many attempts. Please wait 30 seconds and try again.')
   })
 
-  it('leaves retryAfter unset when the header is absent or unparseable', () => {
+  it('counts a one-second wait in the singular', () => {
+    expect(toApiError(envelope(429, {}), metaWith({ 'Retry-After': '1' })).message).toBe(
+      'Too many attempts. Please wait 1 second and try again.',
+    )
+  })
+
+  it('still explains a rate limit whose header it cannot read', () => {
+    // Nothing exposes the header on a same-origin proxy, and a value that is
+    // not a number is no better than none.
     expect(toApiError(envelope(429, {})).retryAfter).toBeUndefined()
+    expect(toApiError(envelope(429, {})).message).toBe(
+      'Too many attempts. Please wait before trying again.',
+    )
     expect(
       toApiError(envelope(429, {}), metaWith({ 'Retry-After': 'soon' })).retryAfter,
     ).toBeUndefined()
+  })
+
+  it('carries the request id the API filed the call under', () => {
+    const error = toApiError(envelope(500, {}), metaWith({ 'X-Request-Id': 'req-abc' }))
+    expect(error.requestId).toBe('req-abc')
+  })
+
+  it('leaves the request id unset when the header is not exposed', () => {
+    expect(toApiError(envelope(500, {})).requestId).toBeUndefined()
   })
 
   it('reports a network failure as code 0', () => {

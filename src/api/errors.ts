@@ -98,11 +98,28 @@ export function extractFieldErrors(error: Record<string, unknown> | undefined): 
   return result
 }
 
+/**
+ * Both headers below are readable only because the API lists them in
+ * `Access-Control-Expose-Headers`. A browser hides every response header
+ * outside the CORS safelist, so before it did, these were always absent and no
+ * amount of reading them here would have helped.
+ */
+function header(meta: FetchBaseQueryMeta | undefined, name: string): string | undefined {
+  return meta?.response?.headers.get(name) ?? undefined
+}
+
 function retryAfterSeconds(meta: FetchBaseQueryMeta | undefined): number | undefined {
-  const header = meta?.response?.headers.get('Retry-After')
-  if (header === null || header === undefined) return undefined
-  const seconds = Number.parseInt(header, 10)
+  const value = header(meta, 'Retry-After')
+  if (value === undefined) return undefined
+  const seconds = Number.parseInt(value, 10)
   return Number.isNaN(seconds) ? undefined : seconds
+}
+
+/** How long the API says to wait, in words, when it says at all. */
+function rateLimitMessage(retryAfter: number | undefined): string {
+  if (retryAfter === undefined) return DEFAULT_MESSAGES[429] ?? ''
+  const unit = retryAfter === 1 ? 'second' : 'seconds'
+  return `Too many attempts. Please wait ${String(retryAfter)} ${unit} and try again.`
 }
 
 /**
@@ -113,6 +130,7 @@ export function toApiError(error: FetchBaseQueryError, meta?: FetchBaseQueryMeta
   if (typeof error.status === 'number') {
     const payload = errorPayload(error.data)
     const retryAfter = retryAfterSeconds(meta)
+    const requestId = header(meta, 'X-Request-Id')
 
     return {
       code: error.status,
@@ -120,9 +138,15 @@ export function toApiError(error: FetchBaseQueryError, meta?: FetchBaseQueryMeta
       // The API sends wording aimed at a person for every failure it raises,
       // including the ones it refuses for a named reason. Only a body that
       // carries none — a proxy's answer, a truncated response — needs ours.
-      message: payload.message ?? defaultMessage(error.status),
+      // The exception is the rate limit, where the header knows more than the
+      // sentence: it says how long to wait, so the sentence should too.
+      message:
+        error.status === 429
+          ? rateLimitMessage(retryAfter)
+          : (payload.message ?? defaultMessage(error.status)),
       fieldErrors: extractFieldErrors(payload.error),
       ...(retryAfter !== undefined && { retryAfter }),
+      ...(requestId !== undefined && { requestId }),
     }
   }
 

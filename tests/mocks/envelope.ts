@@ -71,8 +71,19 @@ function failure(
   }
 }
 
+/**
+ * The correlation id the API returns on every response, and exposes to a
+ * cross-origin caller. Fixed rather than random so a test can assert on it.
+ */
+export const REQUEST_ID = 'req-0123456789abcdef'
+
+const REQUEST_ID_HEADER = { 'X-Request-Id': REQUEST_ID }
+
 export function fail(code: number, message?: string, errorCode?: string) {
-  return HttpResponse.json(failure(code, { message, errorCode }), { status: code })
+  return HttpResponse.json(failure(code, { message, errorCode }), {
+    status: code,
+    headers: REQUEST_ID_HEADER,
+  })
 }
 
 export function unauthorized(errorCode?: string) {
@@ -98,17 +109,23 @@ export function notFound() {
 
 /** A safety-invariant refusal, e.g. the last role manager. */
 export function conflict(message: string) {
-  return HttpResponse.json(failure(409, { message }), { status: 409 })
+  return HttpResponse.json(failure(409, { message }), {
+    status: 409,
+    headers: REQUEST_ID_HEADER,
+  })
 }
 
 export function unprocessable(errors: Record<string, string[]>) {
-  return HttpResponse.json(failure(422, { error: errors }), { status: 422 })
+  return HttpResponse.json(failure(422, { error: errors }), {
+    status: 422,
+    headers: REQUEST_ID_HEADER,
+  })
 }
 
 export function tooManyRequests(retryAfter = 60) {
   return HttpResponse.json(failure(429), {
     status: 429,
-    headers: { 'Retry-After': String(retryAfter) },
+    headers: { ...REQUEST_ID_HEADER, 'Retry-After': String(retryAfter) },
   })
 }
 
