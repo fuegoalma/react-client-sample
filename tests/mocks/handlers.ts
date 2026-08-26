@@ -6,12 +6,16 @@ import {
   API_ORIGIN,
   CURRENT_USER_ID,
   db,
+  endAllSessions,
+  issueOneTimeToken,
   mockNow,
   nextId,
   type MockAlbum,
+  type MockOneTimeToken,
   type MockPhoto,
   type MockRole,
   type MockUser,
+  type TokenPurpose,
 } from './db'
 import { authed, byId, can, canOn } from './guards'
 import {
@@ -120,6 +124,26 @@ function createMockUser(body: Record<string, string | undefined>): MockUser | Re
   return user
 }
 
+/**
+ * Spends a single-use token, or says why it cannot be spent.
+ *
+ * The lookup is scoped by purpose, so a password-reset token presented to the
+ * verification endpoint is refused rather than accepted for the wrong thing.
+ * "Unknown" and "already spent" answer identically on purpose — the difference
+ * would tell a caller which tokens once existed.
+ */
+function redeem(token: string | undefined, purpose: TokenPurpose): MockOneTimeToken | Response {
+  const match = db.oneTimeTokens.find(
+    (candidate) => candidate.token === token && candidate.purpose === purpose,
+  )
+
+  if (match === undefined || match.used) return unauthorized(`${purpose}.invalid`)
+  if (match.expired) return unauthorized(`${purpose}.expired`)
+
+  match.used = true
+  return match
+}
+
 /* -- handlers -------------------------------------------------------------- */
 
 export const handlers = [
@@ -167,6 +191,49 @@ export const handlers = [
     return noContent()
   }),
 
+  /**
+   * Answered 204 whether or not the address is registered — telling the two
+   * apart would make this an account-enumeration oracle.
+   */
+  http.post(`${BASE}/auth/forgot-password`, async ({ request }) => {
+    if (db.rateLimited) return tooManyRequests()
+
+    const body = (await request.json()) as { email?: string }
+    const user = db.users.find((candidate) => candidate.email === body.email)
+    if (user !== undefined) issueOneTimeToken(user.id, 'password_reset')
+
+    return noContent()
+  }),
+
+  http.post(`${BASE}/auth/reset-password`, async ({ request }) => {
+    if (db.rateLimited) return tooManyRequests()
+
+    const body = (await request.json()) as { token?: string; password?: string }
+    const redeemed = redeem(body.token, 'password_reset')
+    if (redeemed instanceof Response) return redeemed
+
+    const user = db.users.find((candidate) => candidate.id === redeemed.userId)
+    if (user === undefined) return unauthorized('password_reset.invalid')
+
+    user.password = body.password ?? ''
+    endAllSessions(user.id)
+    return noContent()
+  }),
+
+  http.post(`${BASE}/auth/verify-email`, async ({ request }) => {
+    if (db.rateLimited) return tooManyRequests()
+
+    const body = (await request.json()) as { token?: string }
+    const redeemed = redeem(body.token, 'email_verification')
+    if (redeemed instanceof Response) return redeemed
+
+    const user = db.users.find((candidate) => candidate.id === redeemed.userId)
+    if (user === undefined) return unauthorized('email_verification.invalid')
+
+    user.email_verified = true
+    return noContent()
+  }),
+
   /* ---- Health ---- */
 
   http.get(`${BASE}/health`, () => {
@@ -195,6 +262,35 @@ export const handlers = [
     authed(({ caller }) => {
       const payload: MePermissions = { roles: caller.roles, permissions: db.callerPermissions }
       return ok(payload)
+    }),
+  ),
+
+  /**
+   * The caller's own password. No id in the route, so it cannot be aimed
+   * elsewhere — and every session ends, this one included.
+   */
+  http.put(
+    `${BASE}/users/me/password`,
+    authed(async ({ request, caller }) => {
+      const body = (await request.json()) as { current_password?: string; password?: string }
+
+      if (caller.password !== body.current_password) {
+        return invalidCredentials('The current password is incorrect.')
+      }
+
+      caller.password = body.password ?? ''
+      caller.updated_at = mockNow()
+      endAllSessions(caller.id)
+      return noContent()
+    }),
+  ),
+
+  /** Idempotent, and a no-op once the address is confirmed. 204 either way. */
+  http.post(
+    `${BASE}/users/me/resend-verification`,
+    authed(({ caller }) => {
+      if (!caller.email_verified) issueOneTimeToken(caller.id, 'email_verification')
+      return noContent()
     }),
   ),
 

@@ -1,5 +1,6 @@
 import { ListQueryBuilder } from '@/services/listQuery'
 import type {
+  ChangePasswordRequest,
   ListQuery,
   Me,
   MePermissions,
@@ -84,6 +85,28 @@ export const usersApi = baseApi.injectEndpoints({
         'MePermissions',
       ],
     }),
+
+    /**
+     * Changes the caller's own password. There is no id in the route, so it
+     * cannot be aimed at another account.
+     *
+     * Invalidates nothing on purpose: the API ends every session of the
+     * account, this one included, so the cache is about to be reset by the
+     * sign-out that has to follow.
+     */
+    changeMyPassword: build.mutation<null, ChangePasswordRequest>({
+      query: (body) => ({ url: '/users/me/password', method: 'PUT', body }),
+    }),
+
+    /**
+     * Issues a fresh confirmation token for the caller's own address, retiring
+     * any earlier one. A no-op once the address is confirmed, so it cannot be
+     * used to spray mail at it — and 204 either way, which is why nothing here
+     * may report that a message was actually sent.
+     */
+    resendVerification: build.mutation<null, void>({
+      query: () => ({ url: '/users/me/resend-verification', method: 'POST' }),
+    }),
   }),
 })
 
@@ -100,4 +123,6 @@ export const {
   useDeleteUserMutation,
   useUserRolesQuery,
   useReplaceUserRolesMutation,
+  useChangeMyPasswordMutation,
+  useResendVerificationMutation,
 } = usersApi

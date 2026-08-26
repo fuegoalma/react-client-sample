@@ -76,7 +76,23 @@ export interface MockState {
   health: 'ok' | 'error'
   /** Set to answer the next mutation with a 429. */
   rateLimited: boolean
+  /**
+   * Live single-use tokens, as the API's `one_time_token` table holds them —
+   * scoped by purpose, so a reset token cannot confirm an address.
+   */
+  oneTimeTokens: MockOneTimeToken[]
   nextId: number
+}
+
+export type TokenPurpose = 'password_reset' | 'email_verification'
+
+export interface MockOneTimeToken {
+  token: string
+  userId: number
+  purpose: TokenPurpose
+  /** Spent tokens are kept, not deleted: replaying one must be refused, not missed. */
+  used: boolean
+  expired: boolean
 }
 
 export const CATALOG: readonly Permission[] = [
@@ -250,6 +266,7 @@ function seed(): MockState {
     refreshFails: false,
     health: 'ok',
     rateLimited: false,
+    oneTimeTokens: [],
     nextId: 1000,
   }
 }
@@ -292,4 +309,30 @@ export function nextId(): number {
 /** Invalidates every access token currently issued, as expiry would. */
 export function expireAccessTokens(): void {
   db.expiredAccessTokens = db.sessions.map((session) => session.accessToken)
+}
+
+/**
+ * Ends every session of an account, the way the API does when its password
+ * changes: the refresh families are revoked *and* the access tokens already
+ * issued stop working, because the account's token version moves on.
+ */
+export function endAllSessions(userId: number): void {
+  const theirs = db.sessions.filter((session) => session.userId === userId)
+
+  db.expiredAccessTokens.push(...theirs.map((session) => session.accessToken))
+  db.sessions = db.sessions.filter((session) => session.userId !== userId)
+}
+
+/**
+ * Issues a single-use token, retiring any earlier one for the same purpose —
+ * so only the newest reset link works, and asking again does not leave two live.
+ */
+export function issueOneTimeToken(userId: number, purpose: TokenPurpose): string {
+  db.oneTimeTokens = db.oneTimeTokens.filter(
+    (token) => !(token.userId === userId && token.purpose === purpose),
+  )
+
+  const token = `${purpose}-token-${String(nextId())}`
+  db.oneTimeTokens.push({ token, userId, purpose, used: false, expired: false })
+  return token
 }

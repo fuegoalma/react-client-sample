@@ -11,6 +11,8 @@ import type {
   AlbumUpdateRequest,
   AlbumView,
   ApiErrorPayload,
+  ChangePasswordRequest,
+  ForgotPasswordRequest,
   HealthCheck,
   LoginRequest,
   Me,
@@ -22,6 +24,7 @@ import type {
   PhotoUpdateRequest,
   RefreshTokenRequest,
   RegisterRequest,
+  ResetPasswordRequest,
   Role,
   RoleAssignRequest,
   RoleCreateRequest,
@@ -32,6 +35,7 @@ import type {
   UserCreateRequest,
   UserUpdateRequest,
   UserWithAlbums,
+  VerifyEmailRequest,
 } from '@/types'
 
 import type { components } from './schema'
@@ -115,6 +119,19 @@ const MIRRORED = {
   LoginRequest: true satisfies Mirrors<LoginRequest, Schemas['LoginRequest']>,
   RegisterRequest: true satisfies Mirrors<RegisterRequest, Schemas['RegisterRequest']>,
   RefreshTokenRequest: true satisfies Mirrors<RefreshTokenRequest, Schemas['RefreshTokenRequest']>,
+  ForgotPasswordRequest: true satisfies Mirrors<
+    ForgotPasswordRequest,
+    Schemas['ForgotPasswordRequest']
+  >,
+  ResetPasswordRequest: true satisfies Mirrors<
+    ResetPasswordRequest,
+    Schemas['ResetPasswordRequest']
+  >,
+  VerifyEmailRequest: true satisfies Mirrors<VerifyEmailRequest, Schemas['VerifyEmailRequest']>,
+  ChangePasswordRequest: true satisfies Mirrors<
+    ChangePasswordRequest,
+    Schemas['ChangePasswordRequest']
+  >,
   // The client calls the pair what it is; the document names it after the
   // response that carries it.
   TokenResponse: true satisfies Mirrors<TokenPair, Schemas['TokenResponse']>,
