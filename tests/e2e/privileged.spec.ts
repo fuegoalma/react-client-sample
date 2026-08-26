@@ -129,7 +129,7 @@ test.describe('A super admin', () => {
 
     await signIn(page, admin)
     await page.getByRole('link', { name: 'Users' }).click()
-    await page.getByLabel('Email').fill(target.email)
+    await page.getByLabel('Email', { exact: true }).fill(target.email)
     await page.getByRole('button', { name: 'Apply' }).click()
 
     const row = page.getByRole('row').filter({ hasText: target.email })
@@ -156,7 +156,7 @@ test.describe('A super admin', () => {
 
     await signIn(page, admin)
     await page.getByRole('link', { name: 'Users' }).click()
-    await page.getByLabel('Email').fill(target.email)
+    await page.getByLabel('Email', { exact: true }).fill(target.email)
     await page.getByRole('button', { name: 'Apply' }).click()
     await page
       .getByRole('row')
@@ -202,7 +202,7 @@ test.describe('A super admin', () => {
 
     await signIn(page, admin)
     await page.getByRole('link', { name: 'Users' }).click()
-    await page.getByLabel('Email').fill(moderator.email)
+    await page.getByLabel('Email', { exact: true }).fill(moderator.email)
     await page.getByRole('button', { name: 'Apply' }).click()
     await page
       .getByRole('row')
