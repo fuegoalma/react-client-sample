@@ -11,12 +11,15 @@ to send, which proves nothing about the contract.
 ## Decision
 
 `tests/mocks/handlers.ts` is a small re-implementation of the API: the response
-envelope, pagination with filters and a sort whitelist, token rotation, and the
-401/403/404/409/422/429 answers. `onUnhandledRequest: 'error'` — a request the
-mock does not recognise fails the test rather than hanging it.
+envelope, pagination with filters and a sort whitelist, token rotation,
+single-use tokens scoped by purpose, and the 401/403/404/409/422/429 answers.
+`onUnhandledRequest: 'error'` — a request the mock does not recognise fails the
+test rather than hanging it.
 
 Its permission logic (`canOn`, `OWN_ABILITIES` in `tests/mocks/guards.ts`) is
-**re-derived rather than imported from `src/`**.
+**re-derived rather than imported from `src/`**, and so is the status→`error_code`
+table in `tests/mocks/envelope.ts` — for the same reason, and it is the one the
+client now branches on ([ADR 8](0008-branch-on-the-error-code.md)).
 
 ## Consequences
 

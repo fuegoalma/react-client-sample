@@ -255,25 +255,29 @@ The UI only _hides_; the API re-checks every request and answers 403 regardless.
 
 ## Screens and endpoint coverage
 
-All **33** operations are used. The `PATCH` aliases are skipped deliberately —
-they are identical to `PUT`.
+**38 of the API's 41** operations are used. The `PATCH` aliases are skipped
+deliberately — they are identical to `PUT`. So are `GET /metrics`, `GET /docs`
+and `GET /docs/openapi.yaml`: a Prometheus scrape target and the documentation
+site, which are operator surface that happens to share a host with the API.
 
-| Screen                                | Endpoints                                                            |
-| ------------------------------------- | -------------------------------------------------------------------- |
-| `/login`, `/register`                 | `POST /auth/login`, `POST /auth/register`                            |
-| (transport)                           | `POST /auth/refresh`                                                 |
-| Account menu                          | `POST /auth/logout`, `POST /auth/logout-all`                         |
-| `/health` + footer badge              | `GET /health`                                                        |
-| `/profile`                            | `GET /users/me`, `GET /users/me/permissions`, `PUT /users/{id}`      |
-| `/albums`                             | `GET /albums/my`, `POST /albums`                                     |
-| `/all-albums`                         | `GET /albums`, `POST /albums/{id}/restore`                           |
-| `/albums/{id}`                        | `GET`, `PUT`, `DELETE /albums/{id}`, `GET\|POST /albums/{id}/photos` |
-| `/albums/{id}/photos/{id}`            | `GET\|PUT\|DELETE /photos/{id}`                                      |
-| `/users`                              | `GET /users`, `POST /users`                                          |
-| `/users/{id}`                         | `GET`, `PUT`, `DELETE /users/{id}`                                   |
-| `/users/{id}/roles`                   | `GET\|PUT /users/{id}/roles`                                         |
-| `/roles`, `/roles/new`, `/roles/{id}` | `GET`, `POST /roles`, `GET\|PUT\|DELETE /roles/{id}`                 |
-| `/permissions`                        | `GET /permissions`                                                   |
+| Screen                                | Endpoints                                                                                                                       |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `/login`, `/register`                 | `POST /auth/login`, `POST /auth/register`                                                                                       |
+| `/forgot-password`, `/reset-password` | `POST /auth/forgot-password`, `POST /auth/reset-password`                                                                       |
+| `/verify-email`                       | `POST /auth/verify-email`                                                                                                       |
+| (transport)                           | `POST /auth/refresh`                                                                                                            |
+| Account menu                          | `POST /auth/logout`, `POST /auth/logout-all`                                                                                    |
+| `/health` + footer badge              | `GET /health`                                                                                                                   |
+| `/profile`                            | `GET /users/me`, `GET /users/me/permissions`, `PUT /users/{id}`, `PUT /users/me/password`, `POST /users/me/resend-verification` |
+| `/albums`                             | `GET /albums/my`, `POST /albums`                                                                                                |
+| `/all-albums`                         | `GET /albums`, `POST /albums/{id}/restore`                                                                                      |
+| `/albums/{id}`                        | `GET`, `PUT`, `DELETE /albums/{id}`, `GET\|POST /albums/{id}/photos`                                                            |
+| `/albums/{id}/photos/{id}`            | `GET\|PUT\|DELETE /photos/{id}`                                                                                                 |
+| `/users`                              | `GET /users`, `POST /users`                                                                                                     |
+| `/users/{id}`                         | `GET`, `PUT`, `DELETE /users/{id}`                                                                                              |
+| `/users/{id}/roles`                   | `GET\|PUT /users/{id}/roles`                                                                                                    |
+| `/roles`, `/roles/new`, `/roles/{id}` | `GET`, `POST /roles`, `GET\|PUT\|DELETE /roles/{id}`                                                                            |
+| `/permissions`                        | `GET /permissions`                                                                                                              |
 
 ### What each role sees
 
@@ -361,11 +365,13 @@ make test-contract   # see what moved
 ```
 
 The copy is committed because CI has no API to ask; `spec-drift.yml` refetches
-it on a schedule so the snapshot cannot quietly go stale. Two deliberate asymmetries
-are encoded in the tests rather than left implicit: `POST /auth/refresh` is
-issued by the transport, not a repository, and `/albums` offers a `user_id`
-filter the client does not — an album list response carries no owner, so there
-would be nothing to filter against.
+it on a schedule so the snapshot cannot quietly go stale. Three deliberate
+asymmetries are encoded in the tests rather than left implicit: `POST
+/auth/refresh` is issued by the transport, not a repository; `/albums` offers a
+`user_id` filter the client does not — an album list response carries no owner,
+so there would be nothing to filter against, and the API stopped accepting it as
+a _sort_ for the same reason; and `NOT_CALLED` names the three operator-only
+operations, which is the single exemption in an otherwise exhaustive check.
 
 ## The UI kit
 
@@ -401,9 +407,9 @@ cannot drift from what the suite proves.
 
 ## Testing
 
-Four suites. **469 Vitest tests** across 46 files (unit, contract and
+Four suites. **534 Vitest tests** across 49 files (unit, contract and
 functional) at **100% coverage — lines, branches, functions and statements** —
-plus **21 Playwright specs**.
+plus **31 Playwright specs**.
 
 The project is developed **test-first**, and the 100% floor is enforced rather
 than aspirational: an uncovered line fails the build on the commit that

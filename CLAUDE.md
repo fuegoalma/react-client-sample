@@ -143,7 +143,14 @@ src/
 `fetchBaseQuery` is wrapped twice. Nothing above this layer knows the API wraps its payloads or how a 401 is recovered from.
 
 - **`baseQuery.ts`** — attaches `Authorization: Bearer <accessToken>` from the store, then strips the API's `{success, data, code}` envelope so repositories see plain DTOs. A `204` arrives as `null` and passes through untouched.
-- **`errors.ts`** — normalises every failure (HTTP, network, parse) into one `ApiError { code, message, fieldErrors, retryAfter? }`. A 422's `data.error` becomes `fieldErrors` (only entries that actually look like message lists — a `YII_DEBUG` stack trace under the same key is dropped, and an empty array is not a field error). Yii's generic _"An error occurred during execution"_ is replaced with a status-specific message a user can act on; a _meaningful_ server message — a 409 explaining which safety invariant refused the operation — is kept verbatim and must stay that way.
+- **`errors.ts`** — normalises every failure (HTTP, network, parse) into one `ApiError { code, errorCode, message, fieldErrors, retryAfter?, requestId? }`.
+
+  **`errorCode` is what a program branches on; `message` is for a person and free to change.** The API sends a stable machine-readable code with every failure, narrowed where an endpoint can refuse for more than one reason — `auth.invalid_credentials` and `refresh_token.reused` are both 401s meaning entirely different things. A body carrying none falls back to the status's name, so `errorCode` is always present and no caller has to test for `undefined`. **Never match on message text.**
+
+  A 422's `data.error` becomes `fieldErrors`; it is field → list of messages and nothing else, since debug detail now arrives under its own `debug` key and `error` is `{}` for anything that is not a validation failure. The API sends its own wording for every failure it raises — a 409 naming the safety invariant that refused, a 401 saying the password was wrong rather than that a session expired — so that message is passed through, and the status-specific fallbacks here only fill a body that carries none (a proxy's answer, a truncated response). The one exception is a 429, where the header knows more than the sentence: `Retry-After` says how long to wait, so the message does too.
+
+  `retryAfter` and `requestId` are read from `Retry-After` and `X-Request-Id`, which are readable **only because the API lists them in `Access-Control-Expose-Headers`** — a browser hides every response header outside the CORS safelist. `requestId` is diagnostics: `ConsoleErrorReporter` prints it so a bug report can quote something the server log is searchable by, and no UI copy mentions it.
+
 - **`baseQueryWithReauth.ts`** — on a 401, refreshes once and replays the original request. **The mutex is load-bearing:** refresh tokens _rotate_ and the API treats a re-used one as a leak, revoking the whole session — so two concurrent refreshes would sign the user out. Every request waits on `refreshMutex` before firing and while a refresh is in flight. Requests to `/auth/*` are never retried (a 401 there means bad credentials).
 
   **A refresh has three outcomes, not two, and the distinction is load-bearing.** `refreshSession` returns `'refreshed'`, `'rejected'` or `'no-session'`. A _rejected_ refresh dispatches `loggedOut()`, which clears the token storage and resets the RTK Query cache. A _missing_ session must do neither: ending an already-ended session re-dispatches `loggedOut()`, the reset re-fires every mounted query without a token, each 401s, and the transport arrives back here — a live-lock. This was a real bug; it made signing out untestable and is why `useAuth.signOut()` navigates rather than leaving screens mounted.
@@ -156,7 +163,11 @@ The token pair is the only auth state in Redux (`src/app/authSlice.ts`); the pro
 
 `useAuth()` is the session's public surface. Signing out is **best-effort by design**: the API's logout is idempotent, and the local session must end even if the request fails, so the token is always dropped locally regardless of the response.
 
-**`signOut(everywhere?)` navigates, and that is part of signing out — not an extra each screen remembers.** Ending the session resets the RTK Query cache, so any screen left mounted would immediately re-issue its queries without a token. The navbar and the profile screen both call it; neither owns a copy of the sequence.
+**`signOut(everywhere?, notice?)` navigates, and that is part of signing out — not an extra each screen remembers.** Ending the session resets the RTK Query cache, so any screen left mounted would immediately re-issue its queries without a token. The navbar and the profile screen both call it; neither owns a copy of the sequence. `notice` replaces the wording for a sign-out the user did not ask for as such — changing a password ends every session, and "you have been signed out" on its own reads as though something had gone wrong.
+
+**`ToastStack` is mounted in `App`, beside the routes — not inside `AppLayout`.** Signing out raises a toast and then navigates to `/login`, which sits outside that layout, so a stack mounted there was unmounted along with the message it was holding and the confirmation was never seen. This was a real bug and the functional suite could not catch it: `renderWithProviders` mounts a stack of its own, so a page test never has a layout to lose.
+
+**`POST /auth/logout-all` now withdraws the access tokens already issued**, not just the refresh families — the API bumps the account's token version, so it takes effect at once rather than within the JWT's lifetime. `POST /auth/logout` deliberately does not: it ends one device. **Changing or resetting a password ends every session the same way**, the caller's own included, which is why both flows sign out and navigate rather than carrying on with a token the server has already withdrawn.
 
 ### Authorization (RBAC)
 
@@ -203,24 +214,26 @@ The `superRefine` returns immediately while the flag is off, and `toUserPayload(
 
 ### Routing and screens
 
-The route table is `src/app/router.tsx`; permission gates are declared once per audience as layout routes rather than repeated inside screens. **All 33 API operations are used** (the `PATCH` aliases are skipped deliberately — they are identical to `PUT`):
+The route table is `src/app/router.tsx`; permission gates are declared once per audience as layout routes rather than repeated inside screens. **38 of the API's 41 operations are used** (the `PATCH` aliases are skipped deliberately — they are identical to `PUT`). The three that are not are `GET /metrics`, `GET /docs` and `GET /docs/openapi.yaml`: a Prometheus scrape target and the documentation site, which are operator surface that happens to share a host. They are listed in `NOT_CALLED` in `tests/contract/endpoints.test.ts` — **the one exemption in an otherwise exhaustive check**, so an operation a client could sensibly call belongs in a repository instead:
 
-| Screen                                | Endpoints                                                            |
-| ------------------------------------- | -------------------------------------------------------------------- |
-| `/login`, `/register`                 | `POST /auth/login`, `POST /auth/register`                            |
-| (transport)                           | `POST /auth/refresh`                                                 |
-| Account menu                          | `POST /auth/logout`, `POST /auth/logout-all`                         |
-| `/health` + footer badge              | `GET /health`                                                        |
-| `/profile`                            | `GET /users/me`, `GET /users/me/permissions`, `PUT /users/{id}`      |
-| `/albums`                             | `GET /albums/my`, `POST /albums`                                     |
-| `/all-albums`                         | `GET /albums`, `POST /albums/{id}/restore`                           |
-| `/albums/{id}`                        | `GET`, `PUT`, `DELETE /albums/{id}`, `GET\|POST /albums/{id}/photos` |
-| `/albums/{id}/photos/{id}`            | `GET\|PUT\|DELETE /photos/{id}`                                      |
-| `/users`                              | `GET /users`, `POST /users`                                          |
-| `/users/{id}`                         | `GET`, `PUT`, `DELETE /users/{id}`                                   |
-| `/users/{id}/roles`                   | `GET\|PUT /users/{id}/roles`                                         |
-| `/roles`, `/roles/new`, `/roles/{id}` | `GET`, `POST /roles`, `GET\|PUT\|DELETE /roles/{id}`                 |
-| `/permissions`                        | `GET /permissions`                                                   |
+| Screen                                | Endpoints                                                                                                                       |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `/login`, `/register`                 | `POST /auth/login`, `POST /auth/register`                                                                                       |
+| `/forgot-password`, `/reset-password` | `POST /auth/forgot-password`, `POST /auth/reset-password`                                                                       |
+| `/verify-email`                       | `POST /auth/verify-email`                                                                                                       |
+| (transport)                           | `POST /auth/refresh`                                                                                                            |
+| Account menu                          | `POST /auth/logout`, `POST /auth/logout-all`                                                                                    |
+| `/health` + footer badge              | `GET /health`                                                                                                                   |
+| `/profile`                            | `GET /users/me`, `GET /users/me/permissions`, `PUT /users/{id}`, `PUT /users/me/password`, `POST /users/me/resend-verification` |
+| `/albums`                             | `GET /albums/my`, `POST /albums`                                                                                                |
+| `/all-albums`                         | `GET /albums`, `POST /albums/{id}/restore`                                                                                      |
+| `/albums/{id}`                        | `GET`, `PUT`, `DELETE /albums/{id}`, `GET\|POST /albums/{id}/photos`                                                            |
+| `/albums/{id}/photos/{id}`            | `GET\|PUT\|DELETE /photos/{id}`                                                                                                 |
+| `/users`                              | `GET /users`, `POST /users`                                                                                                     |
+| `/users/{id}`                         | `GET`, `PUT`, `DELETE /users/{id}`                                                                                              |
+| `/users/{id}/roles`                   | `GET\|PUT /users/{id}/roles`                                                                                                    |
+| `/roles`, `/roles/new`, `/roles/{id}` | `GET`, `POST /roles`, `GET\|PUT\|DELETE /roles/{id}`                                                                            |
+| `/permissions`                        | `GET /permissions`                                                                                                              |
 
 **`/all-albums` is one screen for two audiences.** What a caller may do there is a permission question, not a routing one: a moderator sees every album and _flags_ one for review (soft delete, optional reason); an admin additionally sees the deletion-state columns and filter, deletes permanently, and restores. Ownership still wins — your own album is always deleted permanently. Do not split this into two routes.
 
@@ -278,7 +291,7 @@ Never read `import.meta.env` directly outside `src/config/` — a value baked at
 
 ## Testing Conventions
 
-Four suites, mirroring the API's own split plus a contract suite. **469 Vitest tests** across 46 files (unit, contract, functional) at **100% coverage — lines, branches, functions and statements alike** — plus **24 Playwright specs**.
+Four suites, mirroring the API's own split plus a contract suite. **534 Vitest tests** across 49 files (unit, contract, functional) at **100% coverage — lines, branches, functions and statements alike** — plus **31 Playwright specs**.
 
 **Work test-first.** The 100% floor is enforced, not aspirational, so there is no "add tests later": an uncovered line fails the build on the commit that introduced it. Which form of test-first depends on what you are doing:
 

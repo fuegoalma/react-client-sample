@@ -36,6 +36,8 @@ Three gates keep the oracle honest, because a vendored document is a snapshot:
   and fails when it has moved.
 - `dtoShapes.test.ts` asserts that **every** schema in the document is either
   mirrored or listed as deliberately not mirrored.
+- `endpoints.test.ts` asserts the same for operations, in both directions: no
+  call the document does not describe, and no operation left unused.
 
 ## Consequences
 
@@ -52,3 +54,19 @@ Three gates keep the oracle honest, because a vendored document is a snapshot:
 - The mock API is checked against the same document but written independently
   ([ADR 5](0005-mock-api-as-independent-mirror.md)) — a mock that agreed with
   the client by construction is what let the `Pagination` mistake survive.
+
+## The one exemption, and the rule for it
+
+"Every documented operation is used" stopped being literally true when the API
+grew `GET /metrics`, `GET /docs` and `GET /docs/openapi.yaml` — a Prometheus
+scrape target and its own documentation site. They are operator surface that
+happens to share a host; a browser client calling them would be doing something
+odd, so _unused_ is the correct state rather than a gap.
+
+They are named in `NOT_CALLED` in `endpoints.test.ts`. An escape hatch that is
+not written down is how an oracle quietly stops being one, so the rule is
+narrow: **an entry must be an operation no client could sensibly call.**
+Anything a client _could_ call belongs in a repository instead, and "we have not
+got round to it yet" is not a reason to add a line here. A second assertion
+holds the list itself to the document, so a skip cannot outlive the operation it
+names.
