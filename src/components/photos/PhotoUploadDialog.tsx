@@ -34,7 +34,7 @@ function UploadForm({ albumId, onClose }: Omit<PhotoUploadDialogProps, 'open'>) 
   const {
     register,
     control,
-    handleSubmit,
+    onSubmitHandler,
     submit,
     formState: { errors },
   } = useApiForm(photoUploadSchema, { title: '', file: undefined })
@@ -59,7 +59,7 @@ function UploadForm({ albumId, onClose }: Omit<PhotoUploadDialogProps, 'open'>) 
       submitLabel="Upload"
       busyLabel="Uploading…"
       isBusy={isLoading}
-      onSubmit={(event) => void handleSubmit(onSubmit)(event)}
+      onSubmit={onSubmitHandler(onSubmit)}
       onClose={onClose}
     >
       <FormAlert error={errors.root} />

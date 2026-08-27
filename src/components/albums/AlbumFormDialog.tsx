@@ -34,7 +34,7 @@ function AlbumForm({ album, onClose }: Omit<AlbumFormDialogProps, 'open'>) {
   const isEdit = album !== undefined
   const {
     register,
-    handleSubmit,
+    onSubmitHandler,
     submit,
     formState: { errors },
   } = useApiForm(albumSchema, { title: album?.title ?? '' })
@@ -53,7 +53,7 @@ function AlbumForm({ album, onClose }: Omit<AlbumFormDialogProps, 'open'>) {
       title={isEdit ? 'Rename album' : 'New album'}
       submitLabel={isEdit ? 'Save' : 'Create album'}
       isBusy={isCreating || isUpdating}
-      onSubmit={(event) => void handleSubmit(onSubmit)(event)}
+      onSubmit={onSubmitHandler(onSubmit)}
       onClose={onClose}
     >
       <FormAlert error={errors.root} />

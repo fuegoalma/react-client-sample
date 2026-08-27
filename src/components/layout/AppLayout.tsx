@@ -1,7 +1,7 @@
 import { Suspense, useEffect, useRef } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
 
-import { ErrorBoundary, Spinner, ToastStack } from '@/components/ui'
+import { ErrorBoundary, Spinner } from '@/components/ui'
 
 import { HealthBadge } from './HealthBadge'
 import { Navbar } from './Navbar'
@@ -41,7 +41,6 @@ export function AppLayout() {
       </a>
 
       <Navbar />
-      <ToastStack />
 
       <main className="appMain" id={MAIN_ID} ref={mainRef} tabIndex={-1}>
         {/* Around the routed content, not around the shell: a screen that

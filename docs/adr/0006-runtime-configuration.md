@@ -30,9 +30,12 @@ is an empty stub in dev.
   once the container starts. A policy written into `app.conf` would either allow
   every host — most of the point gone — or break the one-image promise. The CD
   smoke test asserts the injected host reaches both `env.js` and the header.
-- There are exactly two deliberate exceptions to "never read `import.meta.env`
-  outside `src/config`", both build-time by nature rather than deployment-time,
-  and both commented where they appear: `VITE_DEMO` in `src/main.tsx`, which
-  must stay a literal so the mock API is dropped from a normal build, and
-  Vite's own `BASE_URL` in `src/app/App.tsx`, which is the subdirectory the demo
-  is published under.
+- Two files are exempt from "never read `import.meta.env` outside `src/config`",
+  and only for values that are build-time by nature rather than
+  deployment-time. Each is commented where it appears. `src/main.tsx` reads
+  `VITE_DEMO`, which must stay a literal so Rollup can see the branch is dead in
+  a normal build and drop the whole of MSW with it, and Vite's `BASE_URL` for
+  the service worker's URL; `src/app/App.tsx` reads `BASE_URL` for the router's
+  basename. `BASE_URL` is the subdirectory the demo is published under — a
+  property of the artifact, not of where it is pointed, which is what keeps it
+  on this side of the rule.

@@ -21,6 +21,15 @@ interface UserUpdateFormProps {
   /** Ids must stay unique when another form shares the page. */
   readonly idPrefix: string
   readonly successMessage: string
+  /**
+   * Whether this form offers the password alongside the details.
+   *
+   * An administrator setting someone else's password has no other way to do it,
+   * so `/users/{id}` keeps it. The caller's own account has a better one —
+   * `PUT /users/me/password`, which asks for the current password first — so
+   * `/profile` turns this off and offers that instead.
+   */
+  readonly canChangePassword?: boolean
 }
 
 /**
@@ -35,12 +44,13 @@ export function UserUpdateForm({
   placeholders,
   idPrefix,
   successMessage,
+  canChangePassword = true,
 }: UserUpdateFormProps) {
   const [updateUser, { isLoading: isSaving }] = useUpdateUserMutation()
 
   const {
     register,
-    handleSubmit,
+    onSubmitHandler,
     reset,
     watch,
     submit,
@@ -68,7 +78,7 @@ export function UserUpdateForm({
   }
 
   return (
-    <form onSubmit={(event) => void handleSubmit(onSubmit)(event)} noValidate>
+    <form onSubmit={onSubmitHandler(onSubmit)} noValidate>
       <FormAlert error={errors.root} />
 
       <div className="row g-2">
@@ -104,15 +114,22 @@ export function UserUpdateForm({
         />
       </FormField>
 
-      <ChangePasswordFields
-        idPrefix={idPrefix}
-        toggleProps={register('change_password')}
-        enabled={changingPassword}
-        passwordProps={register('password')}
-        confirmProps={register('password_confirm')}
-        passwordError={errors.password}
-        confirmError={errors.password_confirm}
-      />
+      {/*
+       * Left out entirely rather than disabled: the schema already returns
+       * early while `change_password` is off and `toUserPayload` ignores the
+       * password on the same condition, so an absent section sends nothing.
+       */}
+      {canChangePassword && (
+        <ChangePasswordFields
+          idPrefix={idPrefix}
+          toggleProps={register('change_password')}
+          enabled={changingPassword}
+          passwordProps={register('password')}
+          confirmProps={register('password_confirm')}
+          passwordError={errors.password}
+          confirmError={errors.password_confirm}
+        />
+      )}
 
       <SubmitButton
         isBusy={isSaving}

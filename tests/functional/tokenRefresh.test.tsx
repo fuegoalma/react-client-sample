@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { createAppStore } from '@/app/store'
 import { credentialsReceived, selectIsAuthenticated } from '@/app/authSlice'
 import { MyAlbumsPage } from '@/pages/albums/MyAlbumsPage'
-import { baseApi, usersApi } from '@/repositories'
+import { authApi, baseApi, usersApi } from '@/repositories'
 import { InMemoryTokenStorage } from '@/services'
 
 import { ACCESS_TOKEN, REFRESH_TOKEN, db, expireAccessTokens } from '../mocks/db'
@@ -144,6 +144,33 @@ describe('Requests described as a bare URL', () => {
     await store.dispatch(probeApi.endpoints.authStringProbe.initiate(null))
 
     expect(db.sessions.length).toBe(before)
+  })
+})
+
+/**
+ * The password and verification endpoints are public and sit under `/auth/`, so
+ * the transport's never-retry rule covers them without anything being added for
+ * them. That is worth an assertion rather than an assumption: a 401 from any of
+ * them is the token in the *email* being wrong, and replaying the request after
+ * a refresh would spend the session's refresh token to re-ask a question whose
+ * answer cannot change.
+ */
+describe('The public password and verification endpoints', () => {
+  it('never spends a refresh token on a 401 from one of them', async () => {
+    const store = signedInStore()
+    expireAccessTokens()
+    const before = db.sessions.length
+
+    // `resetPassword` and `verifyEmail` answer 401 for a token the API never
+    // issued, which is exactly the case that must not trigger a rotation.
+    await store.dispatch(authApi.endpoints.forgotPassword.initiate({ email: 'a@b.com' }))
+    await store.dispatch(
+      authApi.endpoints.resetPassword.initiate({ token: 'nope', password: 'secret123' }),
+    )
+    await store.dispatch(authApi.endpoints.verifyEmail.initiate({ token: 'nope' }))
+
+    expect(db.sessions.length).toBe(before)
+    expect(store.getState().auth.refreshToken).toBe(REFRESH_TOKEN)
   })
 })
 

@@ -85,8 +85,9 @@ make clean         # remove build output and caches
 # The UI kit, the API contract and the README's screenshots
 make storybook       # the component workshop on :6006 (host)
 make build-storybook
-make sync-spec       # refetch openapi.yaml from a running API, regenerate its types
+make sync-spec       # refetch openapi.yaml from SPEC_URL, regenerate its types
 make spec-verify     # the offline half: do the committed types match the committed spec?
+make spec-drift      # ask SPEC_URL whether that spec has moved (read-only)
 make screenshots     # regenerate the README screenshots from the running stack (host)
 ```
 
@@ -115,16 +116,19 @@ The layering deliberately mirrors the API's own **Controller → Form Request �
 
 ```
 src/
-  app/            store, router, slices, typed hooks        (composition root)
+  app/            store, router, paths, slices, typed hooks (composition root)
   config/         runtime configuration (env.js ?? import.meta.env)
-  contracts/      TokenStorage, PermissionChecker           (the DI seams)
+  contracts/      TokenStorage, PermissionChecker,          (the DI seams)
+                  ErrorReporter, ThemePreference
   types/          DTOs + envelope, pagination, ApiError, ListQuery
   api/            transport: envelope unwrap, error normalisation, re-auth
   repositories/   one module per resource, all injected into one RTK Query API
-  services/       PermissionService, one policy per resource, ListQueryBuilder, TokenStorage
+  services/       PermissionService, one policy per resource, ListQueryBuilder,
+                  TokenStorage, theme, error reporting, DateTime
   forms/          rules + schemas + listSpecs — the client's form requests
   hooks/          useAuth, usePermissions, useListQuery, useApiForm,
-                  useNotifications, useMutationAction, useToggleSelection
+                  useNotifications, useMutationAction, useToggleSelection,
+                  useNumericParam, useTheme, useDocumentTitle
   components/     layout/, guards/, ui/, and per-resource dialogs
   pages/          one folder per screen
   styles/         SCSS: our variables → Bootstrap → our components
@@ -143,7 +147,14 @@ src/
 `fetchBaseQuery` is wrapped twice. Nothing above this layer knows the API wraps its payloads or how a 401 is recovered from.
 
 - **`baseQuery.ts`** — attaches `Authorization: Bearer <accessToken>` from the store, then strips the API's `{success, data, code}` envelope so repositories see plain DTOs. A `204` arrives as `null` and passes through untouched.
-- **`errors.ts`** — normalises every failure (HTTP, network, parse) into one `ApiError { code, message, fieldErrors, retryAfter? }`. A 422's `data.error` becomes `fieldErrors` (only entries that actually look like message lists — a `YII_DEBUG` stack trace under the same key is dropped, and an empty array is not a field error). Yii's generic _"An error occurred during execution"_ is replaced with a status-specific message a user can act on; a _meaningful_ server message — a 409 explaining which safety invariant refused the operation — is kept verbatim and must stay that way.
+- **`errors.ts`** — normalises every failure (HTTP, network, parse) into one `ApiError { code, errorCode, message, fieldErrors, retryAfter?, requestId? }`.
+
+  **`errorCode` is what a program branches on; `message` is for a person and free to change.** The API sends a stable machine-readable code with every failure, narrowed where an endpoint can refuse for more than one reason — `auth.invalid_credentials` and `refresh_token.reused` are both 401s meaning entirely different things. A body carrying none falls back to the status's name, so `errorCode` is always present and no caller has to test for `undefined`. **Never match on message text.**
+
+  A 422's `data.error` becomes `fieldErrors`; it is field → list of messages and nothing else, since debug detail now arrives under its own `debug` key and `error` is `{}` for anything that is not a validation failure. The API sends its own wording for every failure it raises — a 409 naming the safety invariant that refused, a 401 saying the password was wrong rather than that a session expired — so that message is passed through, and the status-specific fallbacks here only fill a body that carries none (a proxy's answer, a truncated response). The one exception is a 429, where the header knows more than the sentence: `Retry-After` says how long to wait, so the message does too.
+
+  `retryAfter` and `requestId` are read from `Retry-After` and `X-Request-Id`, which are readable **only because the API lists them in `Access-Control-Expose-Headers`** — a browser hides every response header outside the CORS safelist. `requestId` is diagnostics: `ConsoleErrorReporter` prints it so a bug report can quote something the server log is searchable by, and no UI copy mentions it.
+
 - **`baseQueryWithReauth.ts`** — on a 401, refreshes once and replays the original request. **The mutex is load-bearing:** refresh tokens _rotate_ and the API treats a re-used one as a leak, revoking the whole session — so two concurrent refreshes would sign the user out. Every request waits on `refreshMutex` before firing and while a refresh is in flight. Requests to `/auth/*` are never retried (a 401 there means bad credentials).
 
   **A refresh has three outcomes, not two, and the distinction is load-bearing.** `refreshSession` returns `'refreshed'`, `'rejected'` or `'no-session'`. A _rejected_ refresh dispatches `loggedOut()`, which clears the token storage and resets the RTK Query cache. A _missing_ session must do neither: ending an already-ended session re-dispatches `loggedOut()`, the reset re-fires every mounted query without a token, each 401s, and the transport arrives back here — a live-lock. This was a real bug; it made signing out untestable and is why `useAuth.signOut()` navigates rather than leaving screens mounted.
@@ -156,7 +167,11 @@ The token pair is the only auth state in Redux (`src/app/authSlice.ts`); the pro
 
 `useAuth()` is the session's public surface. Signing out is **best-effort by design**: the API's logout is idempotent, and the local session must end even if the request fails, so the token is always dropped locally regardless of the response.
 
-**`signOut(everywhere?)` navigates, and that is part of signing out — not an extra each screen remembers.** Ending the session resets the RTK Query cache, so any screen left mounted would immediately re-issue its queries without a token. The navbar and the profile screen both call it; neither owns a copy of the sequence.
+**`signOut(everywhere?, notice?)` navigates, and that is part of signing out — not an extra each screen remembers.** Ending the session resets the RTK Query cache, so any screen left mounted would immediately re-issue its queries without a token. The navbar and the profile screen both call it; neither owns a copy of the sequence. `notice` replaces the wording for a sign-out the user did not ask for as such — changing a password ends every session, and "you have been signed out" on its own reads as though something had gone wrong.
+
+**`ToastStack` is mounted in `App`, beside the routes — not inside `AppLayout`.** Signing out raises a toast and then navigates to `/login`, which sits outside that layout, so a stack mounted there was unmounted along with the message it was holding and the confirmation was never seen. This was a real bug and the functional suite could not catch it: `renderWithProviders` mounts a stack of its own, so a page test never has a layout to lose.
+
+**`POST /auth/logout-all` now withdraws the access tokens already issued**, not just the refresh families — the API bumps the account's token version, so it takes effect at once rather than within the JWT's lifetime. `POST /auth/logout` deliberately does not: it ends one device. **Changing or resetting a password ends every session the same way**, the caller's own included, which is why both flows sign out and navigate rather than carrying on with a token the server has already withdrawn.
 
 ### Authorization (RBAC)
 
@@ -184,7 +199,7 @@ Route guards are `RequireAuth` and `RequirePermission anyOf={[...]}` (`src/compo
 
 `src/forms/rules.ts` holds the primitives (name, email, password, title, role name) mirroring the API's validators; `schemas.ts` composes them per form. Client-side rules exist to reject what the server would reject anyway — the server still owns what the client cannot check (email uniqueness, unknown permission names, the last-role-manager invariant).
 
-`useApiForm(schema, defaultValues, values?)` (`src/hooks/useApiForm.ts`) is the bridge. Form state is typed by the schema's _input_ and `handleSubmit` receives its _output_, so a schema can trim or default on the way through. `applyApiError(error)` projects a failed request onto the form: 422 field errors land on their inputs, anything else becomes a form-level message under `root`. The optional third argument is React Hook Form's `values` — use it for a form whose subject loads asynchronously. **Do not reset from an effect instead:** that lands _after_ the field is on screen and can overwrite a value the user has already begun typing (this was a real bug).
+`useApiForm(schema, defaultValues, values?)` (`src/hooks/useApiForm.ts`) is the bridge. Form state is typed by the schema's _input_ and `handleSubmit` receives its _output_, so a schema can trim or default on the way through. `applyApiError(error)` projects a failed request onto the form: 422 field errors land on their inputs, anything else becomes a form-level message under `root`. The optional third argument is React Hook Form's `values` — use it for a form whose subject loads asynchronously. **Do not reset from an effect instead:** that lands _after_ the field is on screen and can overwrite a value the user has already begun typing (this was a real bug). `onSubmitHandler(onSubmit)` is the `<form>`'s own `onSubmit` — `handleSubmit` returns a promise an element handler may not return, and every form had written the same `void`-wrapping around it.
 
 **Passwords.** Create forms (register, admin user-create) ask for `password` + `password_confirm` and reject a mismatch on the confirmation field. Edit forms (profile, user detail) add a `change_password` checkbox, and **that checkbox is the only switch, for validation and for sending alike**:
 
@@ -203,24 +218,26 @@ The `superRefine` returns immediately while the flag is off, and `toUserPayload(
 
 ### Routing and screens
 
-The route table is `src/app/router.tsx`; permission gates are declared once per audience as layout routes rather than repeated inside screens. **All 33 API operations are used** (the `PATCH` aliases are skipped deliberately — they are identical to `PUT`):
+The route table is `src/app/router.tsx`; permission gates are declared once per audience as layout routes rather than repeated inside screens. **Every address comes from `src/app/paths.ts`** — `ROUTES` holds the patterns the table declares and `paths` builds the filled-in address from them, so a `Link`, a `navigate` or a breadcrumb never spells a URL out for itself. A route that moves then cannot keep being linked to at its old address; `AlbumPolicy.albumsCrumb()` exists because two screens each spelled `/albums` out and stopped agreeing. A detail screen reads its id with `useNumericParam()` (`src/hooks/`), which returns the id and the `skip` that keeps `/albums/NaN` from being requested — one answer, so no screen can take the first without the second. **38 of the API's 41 operations are used** (the `PATCH` aliases are skipped deliberately — they are identical to `PUT`). The three that are not are `GET /metrics`, `GET /docs` and `GET /docs/openapi.yaml`: a Prometheus scrape target and the documentation site, which are operator surface that happens to share a host. They are listed in `NOT_CALLED` in `tests/contract/endpoints.test.ts` — **the one exemption in an otherwise exhaustive check**, so an operation a client could sensibly call belongs in a repository instead:
 
-| Screen                                | Endpoints                                                            |
-| ------------------------------------- | -------------------------------------------------------------------- |
-| `/login`, `/register`                 | `POST /auth/login`, `POST /auth/register`                            |
-| (transport)                           | `POST /auth/refresh`                                                 |
-| Account menu                          | `POST /auth/logout`, `POST /auth/logout-all`                         |
-| `/health` + footer badge              | `GET /health`                                                        |
-| `/profile`                            | `GET /users/me`, `GET /users/me/permissions`, `PUT /users/{id}`      |
-| `/albums`                             | `GET /albums/my`, `POST /albums`                                     |
-| `/all-albums`                         | `GET /albums`, `POST /albums/{id}/restore`                           |
-| `/albums/{id}`                        | `GET`, `PUT`, `DELETE /albums/{id}`, `GET\|POST /albums/{id}/photos` |
-| `/albums/{id}/photos/{id}`            | `GET\|PUT\|DELETE /photos/{id}`                                      |
-| `/users`                              | `GET /users`, `POST /users`                                          |
-| `/users/{id}`                         | `GET`, `PUT`, `DELETE /users/{id}`                                   |
-| `/users/{id}/roles`                   | `GET\|PUT /users/{id}/roles`                                         |
-| `/roles`, `/roles/new`, `/roles/{id}` | `GET`, `POST /roles`, `GET\|PUT\|DELETE /roles/{id}`                 |
-| `/permissions`                        | `GET /permissions`                                                   |
+| Screen                                | Endpoints                                                                                                                       |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `/login`, `/register`                 | `POST /auth/login`, `POST /auth/register`                                                                                       |
+| `/forgot-password`, `/reset-password` | `POST /auth/forgot-password`, `POST /auth/reset-password`                                                                       |
+| `/verify-email`                       | `POST /auth/verify-email`                                                                                                       |
+| (transport)                           | `POST /auth/refresh`                                                                                                            |
+| Account menu                          | `POST /auth/logout`, `POST /auth/logout-all`                                                                                    |
+| `/health` + footer badge              | `GET /health`                                                                                                                   |
+| `/profile`                            | `GET /users/me`, `GET /users/me/permissions`, `PUT /users/{id}`, `PUT /users/me/password`, `POST /users/me/resend-verification` |
+| `/albums`                             | `GET /albums/my`, `POST /albums`                                                                                                |
+| `/all-albums`                         | `GET /albums`, `POST /albums/{id}/restore`                                                                                      |
+| `/albums/{id}`                        | `GET`, `PUT`, `DELETE /albums/{id}`, `GET\|POST /albums/{id}/photos`                                                            |
+| `/albums/{id}/photos/{id}`            | `GET\|PUT\|DELETE /photos/{id}`                                                                                                 |
+| `/users`                              | `GET /users`, `POST /users`                                                                                                     |
+| `/users/{id}`                         | `GET`, `PUT`, `DELETE /users/{id}`                                                                                              |
+| `/users/{id}/roles`                   | `GET\|PUT /users/{id}/roles`                                                                                                    |
+| `/roles`, `/roles/new`, `/roles/{id}` | `GET`, `POST /roles`, `GET\|PUT\|DELETE /roles/{id}`                                                                            |
+| `/permissions`                        | `GET /permissions`                                                                                                              |
 
 **`/all-albums` is one screen for two audiences.** What a caller may do there is a permission question, not a routing one: a moderator sees every album and _flags_ one for review (soft delete, optional reason); an admin additionally sees the deletion-state columns and filter, deletes permanently, and restores. Ownership still wins — your own album is always deleted permanently. Do not split this into two routes.
 
@@ -232,9 +249,10 @@ The route table is `src/app/router.tsx`; permission gates are declared once per 
 
 ### UI conventions
 
-- **Dialogs mount only while open.** `AlbumFormDialog`, `PhotoUploadDialog`, `UserFormDialog` and `AlbumDeleteDialog` return `null` when closed and render an inner component otherwise, so each open starts from fresh form state. Do not reintroduce a resetting effect.
+- **Dialogs mount only while open.** `AlbumFormDialog`, `PhotoUploadDialog`, `UserFormDialog` and the four delete dialogs return `null` when closed and render an inner component otherwise, so each open starts from fresh form state. Do not reintroduce a resetting effect.
+- **A delete is a dialog component, never spelled out in a page.** `AlbumDeleteDialog`, `PhotoDeleteDialog`, `UserDeleteDialog` and `RoleDeleteDialog` each own the pending record, the mutation, the reporting and the confirmation copy; a list screen holds only `useState<T | null>` and renders one. Adding a fifth resource means a fifth dialog, not a `ConfirmDialog` inside the page.
 - **Bootstrap's JavaScript is deliberately unused.** It manipulates the DOM directly, which fights React for ownership of the same nodes and makes dialogs awkward to assert on. `Modal`, `ConfirmDialog` and the navbar dropdown are React components using Bootstrap's markup and CSS only; the account menu implements its own outside-click and Escape dismissal.
-- **One modal shell, one form shell.** `Modal` owns the backdrop, the centring and Escape dismissal; `ConfirmDialog` is built _on_ it rather than repeating it. `FormModal` adds the header, the Cancel/submit footer and the `<form>`, so an editing dialog declares its fields and its wording only.
+- **One modal shell, one form shell.** `Modal` owns the backdrop, the centring, Escape dismissal, the focus trap — and `ModalHeader`/`ModalCancelButton`, the title bar and the way out that both shells render. `ConfirmDialog` and `FormModal` are built _on_ it rather than repeating any of that; `FormModal` adds the submit control and the `<form>`, so an editing dialog declares its fields and its wording only.
 - **Mutations report through `useMutationAction`.** `run(promise, { success, failure, onDone })` replaced the same try/await/toast/catch written out in seven screens. The wording stays at the call site — only the shape is shared — and `failure` is a fallback: a meaningful server message, such as a 409 naming the invariant that refused, still reaches the user verbatim.
 - **A selection being edited is `useToggleSelection`.** It starts from what the server says and becomes local state only once touched, so a refetch never overwrites an edit in progress. The role composer and the role assignment screen share it.
 - **Breadcrumbs appear on nested pages only** (album, photo, user, user roles, role editor) via `PageHeader`'s `breadcrumbs` prop. Pages supply their own trail because only they know a record's name. The album's parent depends on the caller: _My albums_ when owned, _All albums_ when they can list all, and **no link at all** otherwise — a crumb that answers 403 is worse than none.
@@ -276,9 +294,11 @@ make prod-run PROD_API_URL=https://api.example.com
 
 Never read `import.meta.env` directly outside `src/config/` — a value baked at build time cannot be changed at deploy time.
 
+**Two files are exempt, and only for values that are build-time by nature rather than deployment-time** ([ADR 6](docs/adr/0006-runtime-configuration.md) records both, and each is commented where it appears). `src/main.tsx` reads `VITE_DEMO`, which must stay a literal so Rollup can see the branch is dead in a normal build and drop the whole of MSW with it, and Vite's `BASE_URL` for the service worker's URL; `src/app/App.tsx` reads `BASE_URL` for the router's basename. Both are the subdirectory the demo is published under — a property of the artifact, not of where it is pointed. Do not add a third without amending that ADR.
+
 ## Testing Conventions
 
-Four suites, mirroring the API's own split plus a contract suite. **469 Vitest tests** across 46 files (unit, contract, functional) at **100% coverage — lines, branches, functions and statements alike** — plus **24 Playwright specs**.
+Four suites, mirroring the API's own split plus a contract suite. **547 Vitest tests** across 50 files (unit, contract, functional) at **100% coverage — lines, branches, functions and statements alike** — plus **31 Playwright specs**.
 
 **Work test-first.** The 100% floor is enforced, not aspirational, so there is no "add tests later": an uncovered line fails the build on the commit that introduced it. Which form of test-first depends on what you are doing:
 
@@ -327,7 +347,13 @@ The production image enables `mod_rewrite` (`FallbackResource /index.html`, so a
 
 **CI** — `.github/workflows/ci.yml` runs on every push and pull request: `npm ci`, then the same gates as locally, **in the same order**: code style (`cs-check`), the spec/type check (`spec:verify`), static analysis (`typecheck`), tests (with coverage). Keep the workflow in sync with the `Makefile` targets — they must stay runnable both ways. A second job runs Playwright, and is **skipped unless the `E2E_API_URL` repository variable is set**, because the API is not part of this repository; E2E is local-first via `make test-e2e`.
 
-**Spec drift** — `.github/workflows/spec-drift.yml` is the half of `make sync-spec` that needs the API. Every contract gate reads the _committed_ `tests/contract/openapi.yaml`, so once the API moves they all keep passing against a document nobody serves; this job refetches it daily, regenerates the types, re-runs `typecheck` + `test:contract` against the new document, and uploads the refreshed pair. Like the E2E job it is **gated on a repository variable** (`API_SPEC_URL`) and skips without one. See [ADR 7](docs/adr/0007-openapi-as-a-checked-oracle.md) for why the document is checked against rather than generated from.
+**Spec drift** — every contract gate reads the _committed_ `tests/contract/openapi.yaml`, so once the API moves they all keep passing against a document nobody serves. `spec:verify` cannot catch that either: it compares the two halves of one snapshot, and they stay consistent with each other long after the document they were taken from has changed. `.github/workflows/spec-drift.yml` is what asks — daily, it refetches the document, regenerates the types, and re-runs `typecheck` + `test:contract` against the new one. It is gated on the `API_SPEC_URL` repository variable, which points at **the API repository's own committed document**, not at a running instance:
+
+```
+https://raw.githubusercontent.com/fuegoalma/yii2-rest-api-sample/master/config/openapi.yaml
+```
+
+That is what makes it work in CI: a hosted runner cannot reach the API on `localhost`, but `config/openapi.yaml` — the file the API serves at `/docs/openapi.yaml` — is under source control in a public repository, and a file needs no server. **This is where spec drift and E2E differ**: the E2E job is gated the same way but genuinely cannot be woken, because it needs an API answering requests rather than a document. `make spec-drift` asks the same question on demand, read-only, where `make sync-spec` overwrites both halves and leaves you to look. Both read `SPEC_URL`, which defaults to that same raw URL — **one source for all three**, so what CI compares against and what you refresh from cannot be two different documents. Override it to ask an instance instead (`make sync-spec SPEC_URL=http://localhost:8084/docs/openapi.yaml`). See [ADR 7](docs/adr/0007-openapi-as-a-checked-oracle.md) for why the document is checked against rather than generated from.
 
 **CD** — `.github/workflows/cd.yml` chains off a green CI on `master` via `workflow_run`, guarded on `conclusion == 'success'` so a red CI never deploys. It builds the `prod` stage with Buildx + GHA cache and **smoke-tests the real image**: Apache serves the shell, falls back to it for a client-side route, and the entrypoint injected the API URL. The release then runs through a `production` GitHub Environment but is **simulated** — this sample provisions no server.
 
@@ -345,13 +371,14 @@ The production image enables `mod_rewrite` (`FallbackResource /index.html`, so a
 ## Project Structure
 
 ```
-├── .github/workflows/  # CI (cs-check, typecheck, tests) + CD (build image, deploy)
+├── .github/workflows/  # CI · CD · Pages (demo + UI kit) · spec drift · CodeQL
 ├── Dockerfile          # Multi-stage: base → dev / build → prod (Apache)
 ├── .dockerignore       # Allow-list build context
 ├── docker-compose.yml  # Local dev stack (Vite dev server on CLIENT_PORT)
 ├── docker/apache/      # Production vhost + the entrypoint that writes env.js
 ├── public/env.js       # Runtime-config stub, overwritten in the prod image
 ├── src/                # Application code (see Architecture)
+├── docs/               # handbook.md, the ADRs, and the README's screenshots
 ├── tests/
 │   ├── unit/           # Layers in isolation (services, forms, transport, reducers)
 │   ├── functional/     # Pages, components/ and hooks/ against MSW

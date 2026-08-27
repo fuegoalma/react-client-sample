@@ -1,3 +1,4 @@
+import { paths } from '@/app/paths'
 import type { PermissionChecker } from '@/contracts'
 
 import { ABILITIES, PERMISSIONS } from './permissions'
@@ -60,8 +61,8 @@ export class AlbumPolicy {
    * photo screen beneath it need the same answer.
    */
   albumsCrumb(isOwn: boolean): { label: string; to?: string } {
-    if (isOwn) return { label: 'My albums', to: '/albums' }
-    if (this.canListAll()) return { label: 'All albums', to: '/all-albums' }
+    if (isOwn) return { label: 'My albums', to: paths.myAlbums }
+    if (this.canListAll()) return { label: 'All albums', to: paths.allAlbums }
     return { label: 'Albums' }
   }
 

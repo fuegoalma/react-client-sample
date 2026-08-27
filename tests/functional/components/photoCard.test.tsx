@@ -6,7 +6,12 @@ import type { Photo } from '@/types'
 
 import { renderWithProviders } from '../../utils/renderWithProviders'
 
-const photo: Photo = { id: 100, title: 'Beach sunset', url: 'http://api.test/a.webp' }
+const photo: Photo = {
+  id: 100,
+  title: 'Beach sunset',
+  url: 'http://api.test/a.webp',
+  created_at: '2026-02-28 20:11:48',
+}
 
 describe('PhotoCard', () => {
   it('shows the stored image and links to the photo under its album', () => {

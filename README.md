@@ -12,8 +12,9 @@ upload photos and hand yourself roles. Sign in with `ada@example.com` /
 
 A React 19 + TypeScript client for a Yii2 REST API of **users, albums and
 photos** — JWT with a two-token model, flat role-based access control. It uses
-every endpoint the API exposes, and is checked against the API's own OpenAPI
-document rather than against a hand-written copy of it.
+every endpoint a client has any business calling — all but the Prometheus
+scrape target and the API's own documentation site — and is checked against the
+API's own OpenAPI document rather than against a hand-written copy of it.
 
 | Light                                                                     | Dark                                                           |
 | ------------------------------------------------------------------------- | -------------------------------------------------------------- |
@@ -61,7 +62,7 @@ flowchart LR
   end
 
   C["contracts/<br/>TokenStorage · PermissionChecker<br/>ErrorReporter · ThemePreference"]
-  API[("Yii2/Laravel REST API")]
+  API[("Yii2 REST API")]
 
   P --> POL
   P --> F
@@ -87,8 +88,9 @@ flowchart LR
   issues, and each list's filters and sort whitelist, all checked against the
   vendored `openapi.yaml` — checked against, not generated from
   ([ADR 7](docs/adr/0007-openapi-as-a-checked-oracle.md)). `make spec-verify`
-  holds the committed types to that document, and a scheduled job refetches it
-  from the API so the snapshot cannot quietly go stale.
+  holds the committed types to that document; a daily job refetches the API's
+  own copy from its repository and re-runs the contract gates, so the snapshot
+  cannot quietly go stale.
 - **[`tests/mocks/`](tests/mocks/)** — a small re-implementation of the API,
   not canned responses, with its permission logic deliberately re-derived rather
   than imported from `src/` ([ADR 5](docs/adr/0005-mock-api-as-independent-mirror.md)).
@@ -96,8 +98,8 @@ flowchart LR
   one modal shell, one table, one loading/failed/empty triad, each shown on its
   own in both themes with axe running per component.
 
-**469 Vitest tests at 100% coverage** — lines, branches, functions and
-statements — plus 21 Playwright specs. Coverage is a build gate, not a report:
+**547 Vitest tests at 100% coverage** — lines, branches, functions and
+statements — plus 31 Playwright specs. Coverage is a build gate, not a report:
 an uncovered line fails the commit that introduced it.
 
 ## Running it
@@ -116,10 +118,11 @@ The client is served at <http://localhost:8092>. `make help` lists every target.
 
 - **[Handbook](docs/handbook.md)** — setup, commands, architecture, testing
   conventions, the pipeline, and troubleshooting.
-- **[Architecture decision records](docs/adr/)** — seven decisions with their
+- **[Architecture decision records](docs/adr/)** — eight decisions with their
   trade-offs: token storage, single-flight refresh, where the service layer
-  stops, the permission mirror, the mock API, runtime configuration, and the
-  OpenAPI document as an oracle.
+  stops, the permission mirror, the mock API, runtime configuration, the
+  OpenAPI document as an oracle, and branching on the API's error code rather
+  than on its prose.
 
 ## License
 

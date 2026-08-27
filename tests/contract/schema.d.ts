@@ -17,33 +17,7 @@ export interface paths {
          * Log in with email and password
          * @description Returns a fresh access + refresh token pair and starts a new token family (session). Wrong credentials → 401.
          */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["LoginRequest"];
-                };
-            };
-            responses: {
-                /** @description Authenticated — token pair issued. */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["TokenResponseEnvelope"];
-                    };
-                };
-                401: components["responses"]["Unauthorized"];
-                422: components["responses"]["ValidationError"];
-                429: components["responses"]["TooManyRequests"];
-            };
-        };
+        post: operations["authLogin"];
         delete?: never;
         options?: never;
         head?: never;
@@ -63,32 +37,7 @@ export interface paths {
          * Self-register and log in
          * @description Creates an account (assigned **no** role) and logs it straight in, returning a token pair. Duplicate email or a missing field → 422.
          */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["RegisterRequest"];
-                };
-            };
-            responses: {
-                /** @description Account created and logged in — token pair issued. */
-                201: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["TokenResponseEnvelope"];
-                    };
-                };
-                422: components["responses"]["ValidationError"];
-                429: components["responses"]["TooManyRequests"];
-            };
-        };
+        post: operations["authRegister"];
         delete?: never;
         options?: never;
         head?: never;
@@ -111,33 +60,7 @@ export interface paths {
          *     token is treated as a leak and revokes the whole family. Unknown / expired /
          *     revoked token → 401.
          */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["RefreshTokenRequest"];
-                };
-            };
-            responses: {
-                /** @description A fresh token pair in the same family. */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["TokenResponseEnvelope"];
-                    };
-                };
-                401: components["responses"]["Unauthorized"];
-                422: components["responses"]["ValidationError"];
-                429: components["responses"]["TooManyRequests"];
-            };
-        };
+        post: operations["authRefresh"];
         delete?: never;
         options?: never;
         head?: never;
@@ -157,30 +80,7 @@ export interface paths {
          * Log out this device
          * @description Revokes the presented token's **family** (one session/device). Best-effort and idempotent — an unknown token still returns 204.
          */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["RefreshTokenRequest"];
-                };
-            };
-            responses: {
-                /** @description Session revoked (or already gone). */
-                204: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-                422: components["responses"]["ValidationError"];
-                429: components["responses"]["TooManyRequests"];
-            };
-        };
+        post: operations["authLogout"];
         delete?: never;
         options?: never;
         head?: never;
@@ -198,32 +98,98 @@ export interface paths {
         put?: never;
         /**
          * Log out all devices
-         * @description Revokes **every** family of the token's owner. Idempotent → 204.
+         * @description Revokes **every** family of the token's owner **and withdraws the access
+         *     tokens already issued to them**, by bumping the account's token version —
+         *     so it takes effect immediately rather than within `JWT_TTL`. Idempotent → 204.
+         *
+         *     `POST /auth/logout` deliberately does not do this: it ends one device,
+         *     and taking the other devices' access tokens with it would make the two
+         *     endpoints the same thing.
          */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["RefreshTokenRequest"];
-                };
-            };
-            responses: {
-                /** @description All the owner's sessions revoked. */
-                204: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-                422: components["responses"]["ValidationError"];
-                429: components["responses"]["TooManyRequests"];
-            };
+        post: operations["authLogoutAll"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/forgot-password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
         };
+        get?: never;
+        put?: never;
+        /**
+         * Request a password-reset token
+         * @description Emails a single-use token to the address, if it belongs to an account.
+         *
+         *     **Always answers 204**, registered or not. Answering differently would
+         *     make this an account-enumeration oracle, which `POST /auth/login` takes
+         *     deliberate trouble to avoid being.
+         *
+         *     A new request invalidates any token issued earlier, so only the newest
+         *     one works.
+         */
+        post: operations["authForgotPassword"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/reset-password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Set a new password with a reset token
+         * @description Spends the token from `POST /auth/forgot-password` and stores the new
+         *     password.
+         *
+         *     **Every session of the account ends**: refresh families are revoked and
+         *     the access tokens already issued are withdrawn. No token pair is returned
+         *     — log in with the new password.
+         *
+         *     Unknown or already-spent token → 401 `password_reset.invalid`; expired →
+         *     401 `password_reset.expired`.
+         */
+        post: operations["authResetPassword"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/verify-email": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm an email address
+         * @description Spends the token sent on registration and marks the address verified.
+         *
+         *     **Public**: the token is the proof, and requiring a session as well
+         *     would break opening the link in a different browser.
+         *
+         *     Verification is **recorded, not enforced** — an unverified account is
+         *     fully usable, and `email_verified` on the user shape is there so a
+         *     client can prompt. Unknown or spent token → 401
+         *     `email_verification.invalid`; expired → 401 `email_verification.expired`.
+         */
+        post: operations["authVerifyEmail"];
         delete?: never;
         options?: never;
         head?: never;
@@ -241,35 +207,82 @@ export interface paths {
          * Health check
          * @description Public, unauthenticated, unthrottled. Runs `SELECT 1` against the database.
          */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Service healthy. */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["HealthEnvelope"];
-                    };
-                };
-                /** @description Database unreachable (`checks.database` is `"error"`). */
-                503: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["HealthEnvelope"];
-                    };
-                };
-            };
+        get: operations["healthIndex"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/metrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
         };
+        /**
+         * Prometheus scrape endpoint
+         * @description Operational gauges in the Prometheus text exposition format. **Not** the
+         *     JSON envelope every other endpoint uses — Prometheus parses a specific
+         *     line format and would reject anything else.
+         *
+         *     Public and unauthenticated, like `/health`: a scraper is infrastructure
+         *     and has no account. That is acceptable only because nothing here is
+         *     per-user; a metric that leaked something would have to move behind the
+         *     network boundary.
+         *
+         *     Values are read from the database at scrape time rather than accumulated
+         *     in the process: PHP shares no memory between requests, so a counter would
+         *     report one container's slice.
+         */
+        get: operations["metricsIndex"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/docs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Swagger UI
+         * @description Renders this interactive documentation. Served by `DocsController`, which
+         *     extends plain `yii\web\Controller` and sets `Response::FORMAT_RAW`, so it
+         *     deliberately bypasses both the JSON envelope and JWT auth. The page loads
+         *     `swagger-ui-dist` from a pinned CDN, so it needs internet access;
+         *     `/docs/openapi.yaml` itself is always served locally.
+         */
+        get: operations["docsIndex"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/docs/openapi.yaml": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Raw OpenAPI specification
+         * @description Serves this file (`config/openapi.yaml`) verbatim. Not wrapped in the JSON envelope.
+         */
+        get: operations["docsSpec"];
         put?: never;
         post?: never;
         delete?: never;
@@ -289,29 +302,7 @@ export interface paths {
          * The authenticated user's profile
          * @description Available to every authenticated user (never gated). Returns the profile, the user's albums and their role names.
          */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Current user. */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["SuccessEnvelope"] & {
-                            data?: components["schemas"]["Me"];
-                        };
-                    };
-                };
-                401: components["responses"]["Unauthorized"];
-            };
-        };
+        get: operations["usersMe"];
         put?: never;
         post?: never;
         delete?: never;
@@ -331,29 +322,7 @@ export interface paths {
          * The caller's roles and effective permissions
          * @description For a client to build its UI from — role names plus the union of their role-granted permission names. Never gated.
          */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Roles and permissions of the caller. */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["SuccessEnvelope"] & {
-                            data?: components["schemas"]["MePermissions"];
-                        };
-                    };
-                };
-                401: components["responses"]["Unauthorized"];
-            };
-        };
+        get: operations["usersMePermissions"];
         put?: never;
         post?: never;
         delete?: never;
@@ -371,85 +340,15 @@ export interface paths {
         };
         /**
          * List users
-         * @description Requires `user.index.any` (moderator+). Supports `?expand=albums`.
+         * @description Requires `user.index.any` (moderator+).
          */
-        get: {
-            parameters: {
-                query?: {
-                    /** @description Page number (default 1). Out-of-range pages return an empty set. */
-                    page?: components["parameters"]["page"];
-                    /** @description Items per page, 1–100 (default 20). */
-                    per_page?: components["parameters"]["perPage"];
-                    /** @description Comma-separated, `-` prefix = descending. Allowed: `id`, `first_name`, `last_name`, `email`, `created_at`, `updated_at`. */
-                    sort?: string;
-                    /** @description Partial match. */
-                    first_name?: string;
-                    /** @description Partial match. */
-                    last_name?: string;
-                    /** @description Partial match. */
-                    email?: string;
-                    /** @description Comma-separated related resources to embed (e.g. `albums` on users, `photos` on albums). */
-                    expand?: components["parameters"]["expand"];
-                };
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description A page of users. */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["SuccessEnvelope"] & {
-                            data?: {
-                                items?: components["schemas"]["User"][];
-                                pagination?: components["schemas"]["Pagination"];
-                            };
-                        };
-                    };
-                };
-                401: components["responses"]["Unauthorized"];
-                403: components["responses"]["Forbidden"];
-                422: components["responses"]["ValidationError"];
-            };
-        };
+        get: operations["usersIndex"];
         put?: never;
         /**
          * Create a user
          * @description Requires `user.create` (admin+). The account is created with **no** role. Password is hashed server-side.
          */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["UserCreateRequest"];
-                };
-            };
-            responses: {
-                /** @description User created. */
-                201: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["SuccessEnvelope"] & {
-                            data?: components["schemas"]["User"];
-                        };
-                    };
-                };
-                401: components["responses"]["Unauthorized"];
-                403: components["responses"]["Forbidden"];
-                422: components["responses"]["ValidationError"];
-            };
-        };
+        post: operations["usersCreate"];
         delete?: never;
         options?: never;
         head?: never;
@@ -469,135 +368,73 @@ export interface paths {
          * Get a user
          * @description Requires `user.view.any` (moderator+) — ownership does **not** grant it. Always includes the user's albums.
          */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: components["parameters"]["idPath"];
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description The user with albums. */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["SuccessEnvelope"] & {
-                            data?: components["schemas"]["UserWithAlbums"];
-                        };
-                    };
-                };
-                401: components["responses"]["Unauthorized"];
-                403: components["responses"]["Forbidden"];
-                404: components["responses"]["NotFound"];
-            };
-        };
+        get: operations["usersView"];
         /**
          * Update a user (partial)
          * @description Requires ownership (own profile) or `user.update.any` (admin+). All fields optional. An admin cannot take over a role-manager's account (409).
          */
-        put: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: components["parameters"]["idPath"];
-                };
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["UserUpdateRequest"];
-                };
-            };
-            responses: {
-                /** @description Updated user. */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["SuccessEnvelope"] & {
-                            data?: components["schemas"]["User"];
-                        };
-                    };
-                };
-                401: components["responses"]["Unauthorized"];
-                403: components["responses"]["Forbidden"];
-                404: components["responses"]["NotFound"];
-                409: components["responses"]["Conflict"];
-                422: components["responses"]["ValidationError"];
-            };
-        };
+        put: operations["usersUpdate"];
         post?: never;
         /**
          * Delete a user
          * @description Requires `user.delete.any` (admin+). Blocked by the last-role-manager invariant (409).
          */
-        delete: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: components["parameters"]["idPath"];
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description User deleted. */
-                204: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-                401: components["responses"]["Unauthorized"];
-                403: components["responses"]["Forbidden"];
-                404: components["responses"]["NotFound"];
-                409: components["responses"]["Conflict"];
-            };
-        };
+        delete: operations["usersDelete"];
         options?: never;
         head?: never;
         /** Update a user (partial, alias of PUT) */
-        patch: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: components["parameters"]["idPath"];
-                };
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["UserUpdateRequest"];
-                };
-            };
-            responses: {
-                /** @description Updated user. */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["SuccessEnvelope"] & {
-                            data?: components["schemas"]["User"];
-                        };
-                    };
-                };
-                401: components["responses"]["Unauthorized"];
-                403: components["responses"]["Forbidden"];
-                404: components["responses"]["NotFound"];
-                409: components["responses"]["Conflict"];
-                422: components["responses"]["ValidationError"];
-            };
+        patch: operations["usersUpdatePatch"];
+        trace?: never;
+    };
+    "/users/me/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
         };
+        get?: never;
+        /**
+         * Change your own password
+         * @description Changes the **caller's** password; there is no id in the route, so this
+         *     cannot be used against another account.
+         *
+         *     The current password is required even though the caller is
+         *     authenticated: a bearer token left on a shared machine should not be
+         *     enough to take the account over for good. Wrong current password → 401
+         *     `auth.invalid_credentials`.
+         *
+         *     **Every session ends**, including the caller's own — log in again with
+         *     the new password.
+         */
+        put: operations["usersChangePassword"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/me/resend-verification": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Re-send your verification message
+         * @description Issues a fresh token for the **caller's own** address and retires any
+         *     earlier one. Idempotent, and a no-op once the address is already
+         *     verified — so it cannot be used to spray mail at a confirmed address.
+         */
+        post: operations["usersResendVerification"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/users/{id}/roles": {
@@ -613,72 +450,14 @@ export interface paths {
          * List a user's roles
          * @description Requires `role.assign` (admin+).
          */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: components["parameters"]["idPath"];
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description The user's roles. */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["SuccessEnvelope"] & {
-                            data?: components["schemas"]["Role"][];
-                        };
-                    };
-                };
-                401: components["responses"]["Unauthorized"];
-                403: components["responses"]["Forbidden"];
-                404: components["responses"]["NotFound"];
-            };
-        };
+        get: operations["usersRoles"];
         /**
          * Replace a user's role set
          * @description Requires `role.assign` (admin+). Full replacement — an empty array revokes
          *     every role (back to a base user). Anti-escalation and the last-role-manager
          *     invariant are enforced (403 / 409). Unknown role name → 422.
          */
-        put: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: components["parameters"]["idPath"];
-                };
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["RoleAssignRequest"];
-                };
-            };
-            responses: {
-                /** @description The user's new role set. */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["SuccessEnvelope"] & {
-                            data?: components["schemas"]["Role"][];
-                        };
-                    };
-                };
-                401: components["responses"]["Unauthorized"];
-                403: components["responses"]["Forbidden"];
-                404: components["responses"]["NotFound"];
-                409: components["responses"]["Conflict"];
-                422: components["responses"]["ValidationError"];
-            };
-        };
+        put: operations["usersSetRoles"];
         post?: never;
         delete?: never;
         options?: never;
@@ -697,39 +476,7 @@ export interface paths {
          * The caller's own albums
          * @description Available to every authenticated user. Soft-deleted albums are excluded.
          */
-        get: {
-            parameters: {
-                query?: {
-                    /** @description Page number (default 1). Out-of-range pages return an empty set. */
-                    page?: components["parameters"]["page"];
-                    /** @description Items per page, 1–100 (default 20). */
-                    per_page?: components["parameters"]["perPage"];
-                    /** @description Comma-separated, `-` prefix = descending. Allowed: `id`, `user_id`, `title`, `created_at`, `updated_at`. */
-                    sort?: components["parameters"]["albumSort"];
-                    /** @description Partial match. */
-                    title?: string;
-                    /** @description Comma-separated related resources to embed (e.g. `albums` on users, `photos` on albums). */
-                    expand?: components["parameters"]["expand"];
-                };
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description A page of the caller's albums. */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["AlbumListEnvelope"];
-                    };
-                };
-                401: components["responses"]["Unauthorized"];
-                422: components["responses"]["ValidationError"];
-            };
-        };
+        get: operations["albumsMy"];
         put?: never;
         post?: never;
         delete?: never;
@@ -747,79 +494,15 @@ export interface paths {
         };
         /**
          * List all albums (review view)
-         * @description Requires `album.index.any` (moderator+). Soft-deleted albums are hidden unless requested via `?is_deleted=1` (the review queue). Supports `?expand=photos`.
+         * @description Requires `album.index.any` (moderator+). Soft-deleted albums are hidden unless requested via `?is_deleted=1` (the review queue).
          */
-        get: {
-            parameters: {
-                query?: {
-                    /** @description Page number (default 1). Out-of-range pages return an empty set. */
-                    page?: components["parameters"]["page"];
-                    /** @description Items per page, 1–100 (default 20). */
-                    per_page?: components["parameters"]["perPage"];
-                    /** @description Comma-separated, `-` prefix = descending. Allowed: `id`, `user_id`, `title`, `created_at`, `updated_at`. */
-                    sort?: components["parameters"]["albumSort"];
-                    /** @description Partial match. */
-                    title?: string;
-                    /** @description Exact match on owner. */
-                    user_id?: number;
-                    /** @description Exact match. Omit to see only live albums; `1` surfaces the soft-deleted review queue. */
-                    is_deleted?: boolean;
-                    /** @description Comma-separated related resources to embed (e.g. `albums` on users, `photos` on albums). */
-                    expand?: components["parameters"]["expand"];
-                };
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description A page of albums. */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["AlbumListEnvelope"];
-                    };
-                };
-                401: components["responses"]["Unauthorized"];
-                403: components["responses"]["Forbidden"];
-                422: components["responses"]["ValidationError"];
-            };
-        };
+        get: operations["albumsIndex"];
         put?: never;
         /**
          * Create an album
          * @description A base ability of every authenticated user. The owner is forced to the caller — `user_id` cannot be set from the body.
          */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["AlbumCreateRequest"];
-                };
-            };
-            responses: {
-                /** @description Album created. */
-                201: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["SuccessEnvelope"] & {
-                            data?: components["schemas"]["Album"];
-                        };
-                    };
-                };
-                401: components["responses"]["Unauthorized"];
-                422: components["responses"]["ValidationError"];
-            };
-        };
+        post: operations["albumsCreate"];
         delete?: never;
         options?: never;
         head?: never;
@@ -839,69 +522,12 @@ export interface paths {
          * Get an album with its photos and owner
          * @description Requires ownership or `album.view.any` (moderator+). Returns a richer shape including the owner's name and the album's photos.
          */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: components["parameters"]["idPath"];
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description The album with photos. */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["SuccessEnvelope"] & {
-                            data?: components["schemas"]["AlbumView"];
-                        };
-                    };
-                };
-                401: components["responses"]["Unauthorized"];
-                403: components["responses"]["Forbidden"];
-                404: components["responses"]["NotFound"];
-            };
-        };
+        get: operations["albumsView"];
         /**
          * Update an album (partial)
          * @description Requires ownership or `album.update.any` (moderator+). Only the title is editable.
          */
-        put: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: components["parameters"]["idPath"];
-                };
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["AlbumUpdateRequest"];
-                };
-            };
-            responses: {
-                /** @description Updated album. */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["SuccessEnvelope"] & {
-                            data?: components["schemas"]["Album"];
-                        };
-                    };
-                };
-                401: components["responses"]["Unauthorized"];
-                403: components["responses"]["Forbidden"];
-                404: components["responses"]["NotFound"];
-                422: components["responses"]["ValidationError"];
-            };
-        };
+        put: operations["albumsUpdate"];
         post?: never;
         /**
          * Delete an album (permanent or soft)
@@ -911,70 +537,11 @@ export interface paths {
          *
          *     Permanent wins if a role has both.
          */
-        delete: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: components["parameters"]["idPath"];
-                };
-                cookie?: never;
-            };
-            /** @description Only consulted for a soft delete. */
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["AlbumSoftDeleteRequest"];
-                };
-            };
-            responses: {
-                /** @description Album deleted (permanently or soft-flagged). */
-                204: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-                401: components["responses"]["Unauthorized"];
-                403: components["responses"]["Forbidden"];
-                404: components["responses"]["NotFound"];
-                422: components["responses"]["ValidationError"];
-            };
-        };
+        delete: operations["albumsDelete"];
         options?: never;
         head?: never;
         /** Update an album (partial, alias of PUT) */
-        patch: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: components["parameters"]["idPath"];
-                };
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["AlbumUpdateRequest"];
-                };
-            };
-            responses: {
-                /** @description Updated album. */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["SuccessEnvelope"] & {
-                            data?: components["schemas"]["Album"];
-                        };
-                    };
-                };
-                401: components["responses"]["Unauthorized"];
-                403: components["responses"]["Forbidden"];
-                404: components["responses"]["NotFound"];
-                422: components["responses"]["ValidationError"];
-            };
-        };
+        patch: operations["albumsUpdatePatch"];
         trace?: never;
     };
     "/albums/{id}/restore": {
@@ -992,33 +559,7 @@ export interface paths {
          * Restore a soft-deleted album
          * @description Requires `album.restore` (admin+). Lifts the pseudo-deletion after review.
          */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: components["parameters"]["idPath"];
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description The restored album. */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["SuccessEnvelope"] & {
-                            data?: components["schemas"]["Album"];
-                        };
-                    };
-                };
-                401: components["responses"]["Unauthorized"];
-                403: components["responses"]["Forbidden"];
-                404: components["responses"]["NotFound"];
-            };
-        };
+        post: operations["albumsRestore"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1038,46 +579,7 @@ export interface paths {
          * List an album's photos
          * @description Requires ownership of the album or `photo.view.any` (moderator+). A missing album → 404.
          */
-        get: {
-            parameters: {
-                query?: {
-                    /** @description Page number (default 1). Out-of-range pages return an empty set. */
-                    page?: components["parameters"]["page"];
-                    /** @description Items per page, 1–100 (default 20). */
-                    per_page?: components["parameters"]["perPage"];
-                    /** @description Comma-separated, `-` prefix = descending. Allowed: `id`, `title`, `created_at`. */
-                    sort?: string;
-                    /** @description Partial match. */
-                    title?: string;
-                };
-                header?: never;
-                path: {
-                    albumId: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description A page of photos. */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["SuccessEnvelope"] & {
-                            data?: {
-                                items?: components["schemas"]["Photo"][];
-                                pagination?: components["schemas"]["Pagination"];
-                            };
-                        };
-                    };
-                };
-                401: components["responses"]["Unauthorized"];
-                403: components["responses"]["Forbidden"];
-                404: components["responses"]["NotFound"];
-                422: components["responses"]["ValidationError"];
-            };
-        };
+        get: operations["photosIndex"];
         put?: never;
         /**
          * Upload a photo into an album
@@ -1086,46 +588,12 @@ export interface paths {
          *     `jpg, jpeg, png, webp, gif, avif`. Every upload is converted to WebP
          *     quality 80, scaled to fit 500×500 preserving aspect ratio (never
          *     upscaled). A non-image passing the extension check → 422.
+         *
+         *     The file may be at most 10485760 bytes. A larger one is refused with
+         *     `413` and `error_code: payload.too_large` — not a `422`, because the
+         *     body is the problem and resending it unchanged cannot succeed.
          */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    albumId: number;
-                };
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "multipart/form-data": {
-                        title: string;
-                        /**
-                         * Format: binary
-                         * @description The image file (jpg, jpeg, png, webp, gif, avif).
-                         */
-                        file: string;
-                    };
-                };
-            };
-            responses: {
-                /** @description Photo uploaded and stored as WebP. */
-                201: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["SuccessEnvelope"] & {
-                            data?: components["schemas"]["Photo"];
-                        };
-                    };
-                };
-                401: components["responses"]["Unauthorized"];
-                403: components["responses"]["Forbidden"];
-                404: components["responses"]["NotFound"];
-                422: components["responses"]["ValidationError"];
-            };
-        };
+        post: operations["photosCreate"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1145,132 +613,22 @@ export interface paths {
          * Get a photo
          * @description Requires ownership (via the album) or `photo.view.any` (moderator+).
          */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: components["parameters"]["idPath"];
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description The photo. */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["SuccessEnvelope"] & {
-                            data?: components["schemas"]["Photo"];
-                        };
-                    };
-                };
-                401: components["responses"]["Unauthorized"];
-                403: components["responses"]["Forbidden"];
-                404: components["responses"]["NotFound"];
-            };
-        };
+        get: operations["photosView"];
         /**
          * Update a photo (title only)
          * @description Requires ownership or `photo.update.any` (moderator+). The album and the stored file are immutable — only the title can change.
          */
-        put: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: components["parameters"]["idPath"];
-                };
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["PhotoUpdateRequest"];
-                };
-            };
-            responses: {
-                /** @description Updated photo. */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["SuccessEnvelope"] & {
-                            data?: components["schemas"]["Photo"];
-                        };
-                    };
-                };
-                401: components["responses"]["Unauthorized"];
-                403: components["responses"]["Forbidden"];
-                404: components["responses"]["NotFound"];
-                422: components["responses"]["ValidationError"];
-            };
-        };
+        put: operations["photosUpdate"];
         post?: never;
         /**
          * Delete a photo
          * @description Requires ownership or `photo.delete.any` (moderator+). Removes the record and, for uploaded photos, the physical file.
          */
-        delete: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: components["parameters"]["idPath"];
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Photo deleted. */
-                204: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-                401: components["responses"]["Unauthorized"];
-                403: components["responses"]["Forbidden"];
-                404: components["responses"]["NotFound"];
-            };
-        };
+        delete: operations["photosDelete"];
         options?: never;
         head?: never;
         /** Update a photo (title only, alias of PUT) */
-        patch: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: components["parameters"]["idPath"];
-                };
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["PhotoUpdateRequest"];
-                };
-            };
-            responses: {
-                /** @description Updated photo. */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["SuccessEnvelope"] & {
-                            data?: components["schemas"]["Photo"];
-                        };
-                    };
-                };
-                401: components["responses"]["Unauthorized"];
-                403: components["responses"]["Forbidden"];
-                404: components["responses"]["NotFound"];
-                422: components["responses"]["ValidationError"];
-            };
-        };
+        patch: operations["photosUpdatePatch"];
         trace?: never;
     };
     "/roles": {
@@ -1282,79 +640,16 @@ export interface paths {
         };
         /**
          * List roles
-         * @description Requires `role.index` (admin+). Returns name + description (no permission sets).
+         * @description Requires `role.index` (admin+). Returns name + description; the permission
+         *     sets stay behind `role.view` (super admin) on `GET /roles/{id}`.
          */
-        get: {
-            parameters: {
-                query?: {
-                    /** @description Page number (default 1). Out-of-range pages return an empty set. */
-                    page?: components["parameters"]["page"];
-                    /** @description Items per page, 1–100 (default 20). */
-                    per_page?: components["parameters"]["perPage"];
-                    /** @description Comma-separated, `-` prefix = descending. Allowed: `id`, `name`. */
-                    sort?: string;
-                    /** @description Partial match. */
-                    name?: string;
-                };
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description A page of roles. */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["SuccessEnvelope"] & {
-                            data?: {
-                                items?: components["schemas"]["Role"][];
-                                pagination?: components["schemas"]["Pagination"];
-                            };
-                        };
-                    };
-                };
-                401: components["responses"]["Unauthorized"];
-                403: components["responses"]["Forbidden"];
-                422: components["responses"]["ValidationError"];
-            };
-        };
+        get: operations["rolesIndex"];
         put?: never;
         /**
          * Compose a custom role
          * @description Requires `role.manage` (super-admin). Built from catalog permissions; an unknown permission name → 422, a duplicate role name → 422.
          */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["RoleCreateRequest"];
-                };
-            };
-            responses: {
-                /** @description Role created. */
-                201: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["SuccessEnvelope"] & {
-                            data?: components["schemas"]["Role"];
-                        };
-                    };
-                };
-                401: components["responses"]["Unauthorized"];
-                403: components["responses"]["Forbidden"];
-                422: components["responses"]["ValidationError"];
-            };
-        };
+        post: operations["rolesCreate"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1374,136 +669,23 @@ export interface paths {
          * Get a role with its permissions
          * @description Requires `role.view` (super-admin). Includes the role's permission set.
          */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: components["parameters"]["idPath"];
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description The role with permissions. */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["SuccessEnvelope"] & {
-                            data?: components["schemas"]["RoleWithPermissions"];
-                        };
-                    };
-                };
-                401: components["responses"]["Unauthorized"];
-                403: components["responses"]["Forbidden"];
-                404: components["responses"]["NotFound"];
-            };
-        };
+        get: operations["rolesView"];
         /**
          * Re-compose a role (partial)
          * @description Requires `role.manage` (super-admin). A system role can be re-composed but
          *     not renamed (422). Blocked by the last-role-manager invariant (409).
          */
-        put: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: components["parameters"]["idPath"];
-                };
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["RoleUpdateRequest"];
-                };
-            };
-            responses: {
-                /** @description Updated role. */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["SuccessEnvelope"] & {
-                            data?: components["schemas"]["Role"];
-                        };
-                    };
-                };
-                401: components["responses"]["Unauthorized"];
-                403: components["responses"]["Forbidden"];
-                404: components["responses"]["NotFound"];
-                409: components["responses"]["Conflict"];
-                422: components["responses"]["ValidationError"];
-            };
-        };
+        put: operations["rolesUpdate"];
         post?: never;
         /**
          * Delete a custom role
          * @description Requires `role.manage` (super-admin). A system role cannot be deleted (409). Blocked by the last-role-manager invariant (409).
          */
-        delete: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: components["parameters"]["idPath"];
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Role deleted. */
-                204: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-                401: components["responses"]["Unauthorized"];
-                403: components["responses"]["Forbidden"];
-                404: components["responses"]["NotFound"];
-                409: components["responses"]["Conflict"];
-            };
-        };
+        delete: operations["rolesDelete"];
         options?: never;
         head?: never;
         /** Re-compose a role (partial, alias of PUT) */
-        patch: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: components["parameters"]["idPath"];
-                };
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["RoleUpdateRequest"];
-                };
-            };
-            responses: {
-                /** @description Updated role. */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["SuccessEnvelope"] & {
-                            data?: components["schemas"]["Role"];
-                        };
-                    };
-                };
-                401: components["responses"]["Unauthorized"];
-                403: components["responses"]["Forbidden"];
-                404: components["responses"]["NotFound"];
-                409: components["responses"]["Conflict"];
-                422: components["responses"]["ValidationError"];
-            };
-        };
+        patch: operations["rolesUpdatePatch"];
         trace?: never;
     };
     "/permissions": {
@@ -1517,30 +699,7 @@ export interface paths {
          * List the permission catalog
          * @description Requires `permission.index` (super-admin). Read-only — permissions are managed by migrations.
          */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description The whole catalog, ordered by name. */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["SuccessEnvelope"] & {
-                            data?: components["schemas"]["Permission"][];
-                        };
-                    };
-                };
-                401: components["responses"]["Unauthorized"];
-                403: components["responses"]["Forbidden"];
-            };
-        };
+        get: operations["permissionsIndex"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1567,11 +726,33 @@ export interface components {
             /** @example 404 */
             code: number;
             data: {
-                /** @example An error occurred during execution */
+                /**
+                 * @description Human-readable. A message the endpoint chose (e.g. a 409 naming the invariant it refused) is returned verbatim; otherwise it is the default wording for the status.
+                 * @example The requested resource was not found.
+                 */
                 message?: string;
-                /** @description Details; only populated for validation errors, or with a stack trace when `YII_DEBUG`. */
+                /**
+                 * @description Machine-readable and stable — branch on this rather than on `message`.
+                 *     Defaults to the status: `bad_request`, `unauthorized`, `forbidden`,
+                 *     `not_found`, `method_not_allowed`, `conflict`, `unsupported_media_type`,
+                 *     `validation_failed`, `too_many_requests`, `server_error`,
+                 *     `service_unavailable`. Endpoints that can refuse for more than one
+                 *     reason narrow it further: `auth.invalid_credentials`,
+                 *     `refresh_token.invalid`, `refresh_token.reused`,
+                 *     `refresh_token.expired`, `role.system_immutable`,
+                 *     `role.escalation_denied`, `role.last_manager`, `password_reset.invalid`, `password_reset.expired`, `email_verification.invalid`, `email_verification.expired`.
+                 * @example not_found
+                 */
+                error_code?: string;
+                /** @description Field name → list of validation messages. Empty for anything that is not a validation failure — debug detail never appears here. */
                 error?: {
-                    [key: string]: unknown;
+                    [key: string]: string[];
+                };
+                /** @description Present only when the server runs with `YII_DEBUG`. Never sent in production. */
+                debug?: {
+                    file?: string;
+                    line?: number;
+                    trace?: string[];
                 };
             };
         };
@@ -1581,10 +762,15 @@ export interface components {
             /** @example 422 */
             code: number;
             data: {
-                /** @example An error occurred during execution */
+                /** @example The request could not be processed — see `error` for the fields at fault. */
                 message?: string;
                 /**
-                 * @description Field name → list of validation messages.
+                 * @example validation_failed
+                 * @enum {string}
+                 */
+                error_code?: "validation_failed";
+                /**
+                 * @description Field name → list of validation messages. Always populated for a 422.
                  * @example {
                  *       "email": [
                  *         "Email cannot be blank."
@@ -1603,7 +789,10 @@ export interface components {
             per_page?: number;
             /** @example 1 */
             current_page?: number;
-            /** @example 3 */
+            /**
+             * @description `0` when `total` is `0` (an empty result set). An out-of-range `page` is not clamped — it returns empty `items` while `total`/`last_page` still describe the full set.
+             * @example 3
+             */
             last_page?: number;
             /** @example 1 */
             from?: number;
@@ -1668,6 +857,29 @@ export interface components {
                 };
             };
         };
+        ForgotPasswordRequest: {
+            /**
+             * Format: email
+             * @example john@example.com
+             */
+            email: string;
+        };
+        ResetPasswordRequest: {
+            /** @example 8f3ac91b7d2e4a6c */
+            token: string;
+            /** @example brand-new-secret */
+            password: string;
+        };
+        VerifyEmailRequest: {
+            /** @example 8f3ac91b7d2e4a6c */
+            token: string;
+        };
+        ChangePasswordRequest: {
+            /** @example secret123 */
+            current_password: string;
+            /** @example brand-new-secret */
+            password: string;
+        };
         User: {
             /** @example 12 */
             id?: number;
@@ -1680,6 +892,21 @@ export interface components {
              * @example john@example.com
              */
             email?: string;
+            /**
+             * Format: date-time
+             * @example 2026-02-28 20:11:48
+             */
+            created_at?: string;
+            /**
+             * Format: date-time
+             * @example 2026-02-28 20:11:48
+             */
+            updated_at?: string;
+            /**
+             * @description Whether the address has been proven. Recorded, not enforced — an unverified account is fully usable.
+             * @example false
+             */
+            email_verified?: boolean;
         };
         UserWithAlbums: components["schemas"]["User"] & {
             albums?: components["schemas"]["Album"][];
@@ -1722,6 +949,16 @@ export interface components {
             is_deleted?: boolean;
             /** @example null */
             delete_reason?: string | null;
+            /**
+             * Format: date-time
+             * @example 2026-02-28 20:11:48
+             */
+            created_at?: string;
+            /**
+             * Format: date-time
+             * @example 2026-02-28 20:11:48
+             */
+            updated_at?: string;
         };
         /** @description Richer single-album shape — includes the owner's name and the album's photos. */
         AlbumView: {
@@ -1771,6 +1008,11 @@ export interface components {
             title?: string;
             /** @example http://localhost:8084/uploads/albums/5/8f3ac91b.webp */
             url?: string | null;
+            /**
+             * Format: date-time
+             * @example 2026-02-28 20:11:48
+             */
+            created_at?: string;
         };
         /** @description Only the title may change. */
         PhotoUpdateRequest: {
@@ -1863,6 +1105,15 @@ export interface components {
                 "application/json": components["schemas"]["ValidationErrorEnvelope"];
             };
         };
+        /** @description The request body exceeds the server limit (`error_code: payload.too_large`). Distinct from `422`: the body itself is at fault, so resending it unchanged cannot succeed. */
+        PayloadTooLarge: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["ErrorEnvelope"];
+            };
+        };
         /** @description Rate limit exceeded (see the `Retry-After` header). */
         TooManyRequests: {
             headers: {
@@ -1881,9 +1132,7 @@ export interface components {
         page: number;
         /** @description Items per page, 1–100 (default 20). */
         perPage: number;
-        /** @description Comma-separated related resources to embed (e.g. `albums` on users, `photos` on albums). */
-        expand: string;
-        /** @description Comma-separated, `-` prefix = descending. Allowed: `id`, `user_id`, `title`, `created_at`, `updated_at`. */
+        /** @description Comma-separated, `-` prefix = descending. Allowed: `id`, `title`, `created_at`, `updated_at`. Defaults to `id` ascending when omitted or when it resolves to no whitelisted field. */
         albumSort: string;
     };
     requestBodies: never;
@@ -1891,4 +1140,1275 @@ export interface components {
     pathItems: never;
 }
 export type $defs = Record<string, never>;
-export type operations = Record<string, never>;
+export interface operations {
+    authLogin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LoginRequest"];
+            };
+        };
+        responses: {
+            /** @description Authenticated — token pair issued. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TokenResponseEnvelope"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            422: components["responses"]["ValidationError"];
+            429: components["responses"]["TooManyRequests"];
+        };
+    };
+    authRegister: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegisterRequest"];
+            };
+        };
+        responses: {
+            /** @description Account created and logged in — token pair issued. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TokenResponseEnvelope"];
+                };
+            };
+            422: components["responses"]["ValidationError"];
+            429: components["responses"]["TooManyRequests"];
+        };
+    };
+    authRefresh: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RefreshTokenRequest"];
+            };
+        };
+        responses: {
+            /** @description A fresh token pair in the same family. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TokenResponseEnvelope"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            422: components["responses"]["ValidationError"];
+            429: components["responses"]["TooManyRequests"];
+        };
+    };
+    authLogout: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RefreshTokenRequest"];
+            };
+        };
+        responses: {
+            /** @description Session revoked (or already gone). */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            422: components["responses"]["ValidationError"];
+            429: components["responses"]["TooManyRequests"];
+        };
+    };
+    authLogoutAll: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RefreshTokenRequest"];
+            };
+        };
+        responses: {
+            /** @description All the owner's sessions revoked. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            422: components["responses"]["ValidationError"];
+            429: components["responses"]["TooManyRequests"];
+        };
+    };
+    authForgotPassword: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ForgotPasswordRequest"];
+            };
+        };
+        responses: {
+            /** @description Request accepted (whether or not the address is registered). */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            422: components["responses"]["ValidationError"];
+            429: components["responses"]["TooManyRequests"];
+        };
+    };
+    authResetPassword: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResetPasswordRequest"];
+            };
+        };
+        responses: {
+            /** @description Password changed and every session ended. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            422: components["responses"]["ValidationError"];
+            429: components["responses"]["TooManyRequests"];
+        };
+    };
+    authVerifyEmail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VerifyEmailRequest"];
+            };
+        };
+        responses: {
+            /** @description Address confirmed. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            422: components["responses"]["ValidationError"];
+            429: components["responses"]["TooManyRequests"];
+        };
+    };
+    healthIndex: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Service healthy. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HealthEnvelope"];
+                };
+            };
+            /** @description Database unreachable (`checks.database` is `"error"`). */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HealthEnvelope"];
+                };
+            };
+        };
+    };
+    metricsIndex: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Metrics in text exposition format. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+        };
+    };
+    docsIndex: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The Swagger UI HTML page. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/html": string;
+                };
+            };
+        };
+    };
+    docsSpec: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The OpenAPI 3.0 spec, YAML-encoded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/yaml": string;
+                };
+            };
+        };
+    };
+    usersMe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Current user. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessEnvelope"] & {
+                        data?: components["schemas"]["Me"];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    usersMePermissions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Roles and permissions of the caller. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessEnvelope"] & {
+                        data?: components["schemas"]["MePermissions"];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    usersIndex: {
+        parameters: {
+            query?: {
+                /** @description Page number (default 1). Out-of-range pages return an empty set. */
+                page?: components["parameters"]["page"];
+                /** @description Items per page, 1–100 (default 20). */
+                per_page?: components["parameters"]["perPage"];
+                /** @description Comma-separated, `-` prefix = descending. Allowed: `id`, `first_name`, `last_name`, `email`, `created_at`, `updated_at`. Defaults to `id` ascending when omitted or when it resolves to no whitelisted field. */
+                sort?: string;
+                /** @description Partial match. */
+                first_name?: string;
+                /** @description Partial match. */
+                last_name?: string;
+                /** @description Partial match. */
+                email?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A page of users. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessEnvelope"] & {
+                        data?: {
+                            items?: components["schemas"]["User"][];
+                            pagination?: components["schemas"]["Pagination"];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    usersCreate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UserCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description User created. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessEnvelope"] & {
+                        data?: components["schemas"]["User"];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    usersView: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["idPath"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The user with albums. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessEnvelope"] & {
+                        data?: components["schemas"]["UserWithAlbums"];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    usersUpdate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["idPath"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UserUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Updated user. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessEnvelope"] & {
+                        data?: components["schemas"]["User"];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    usersDelete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["idPath"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description User deleted. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    usersUpdatePatch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["idPath"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UserUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Updated user. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessEnvelope"] & {
+                        data?: components["schemas"]["User"];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    usersChangePassword: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChangePasswordRequest"];
+            };
+        };
+        responses: {
+            /** @description Password changed and every session ended. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    usersResendVerification: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Message queued (or already verified, in which case nothing was sent). */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    usersRoles: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["idPath"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The user's roles. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessEnvelope"] & {
+                        data?: components["schemas"]["Role"][];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    usersSetRoles: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["idPath"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RoleAssignRequest"];
+            };
+        };
+        responses: {
+            /** @description The user's new role set. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessEnvelope"] & {
+                        data?: components["schemas"]["Role"][];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    albumsMy: {
+        parameters: {
+            query?: {
+                /** @description Page number (default 1). Out-of-range pages return an empty set. */
+                page?: components["parameters"]["page"];
+                /** @description Items per page, 1–100 (default 20). */
+                per_page?: components["parameters"]["perPage"];
+                /** @description Comma-separated, `-` prefix = descending. Allowed: `id`, `title`, `created_at`, `updated_at`. Defaults to `id` ascending when omitted or when it resolves to no whitelisted field. */
+                sort?: components["parameters"]["albumSort"];
+                /** @description Partial match. */
+                title?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A page of the caller's albums. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlbumListEnvelope"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    albumsIndex: {
+        parameters: {
+            query?: {
+                /** @description Page number (default 1). Out-of-range pages return an empty set. */
+                page?: components["parameters"]["page"];
+                /** @description Items per page, 1–100 (default 20). */
+                per_page?: components["parameters"]["perPage"];
+                /** @description Comma-separated, `-` prefix = descending. Allowed: `id`, `title`, `created_at`, `updated_at`. Defaults to `id` ascending when omitted or when it resolves to no whitelisted field. */
+                sort?: components["parameters"]["albumSort"];
+                /** @description Partial match. */
+                title?: string;
+                /** @description Exact match on owner. */
+                user_id?: number;
+                /** @description Exact match. Omit to see only live albums; `1` surfaces the soft-deleted review queue. */
+                is_deleted?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A page of albums. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlbumListEnvelope"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    albumsCreate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AlbumCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Album created. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessEnvelope"] & {
+                        data?: components["schemas"]["Album"];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    albumsView: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["idPath"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The album with photos. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessEnvelope"] & {
+                        data?: components["schemas"]["AlbumView"];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    albumsUpdate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["idPath"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AlbumUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Updated album. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessEnvelope"] & {
+                        data?: components["schemas"]["Album"];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    albumsDelete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["idPath"];
+            };
+            cookie?: never;
+        };
+        /** @description Only consulted for a soft delete. */
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["AlbumSoftDeleteRequest"];
+            };
+        };
+        responses: {
+            /** @description Album deleted (permanently or soft-flagged). */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    albumsUpdatePatch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["idPath"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AlbumUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Updated album. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessEnvelope"] & {
+                        data?: components["schemas"]["Album"];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    albumsRestore: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["idPath"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The restored album. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessEnvelope"] & {
+                        data?: components["schemas"]["Album"];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    photosIndex: {
+        parameters: {
+            query?: {
+                /** @description Page number (default 1). Out-of-range pages return an empty set. */
+                page?: components["parameters"]["page"];
+                /** @description Items per page, 1–100 (default 20). */
+                per_page?: components["parameters"]["perPage"];
+                /** @description Comma-separated, `-` prefix = descending. Allowed: `id`, `title`, `created_at`. Defaults to `id` ascending when omitted or when it resolves to no whitelisted field. */
+                sort?: string;
+                /** @description Partial match. */
+                title?: string;
+            };
+            header?: never;
+            path: {
+                albumId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A page of photos. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessEnvelope"] & {
+                        data?: {
+                            items?: components["schemas"]["Photo"][];
+                            pagination?: components["schemas"]["Pagination"];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    photosCreate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                albumId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    title: string;
+                    /**
+                     * Format: binary
+                     * @description The image file (jpg, jpeg, png, webp, gif, avif).
+                     */
+                    file: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Photo uploaded and stored as WebP. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessEnvelope"] & {
+                        data?: components["schemas"]["Photo"];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            413: components["responses"]["PayloadTooLarge"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    photosView: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["idPath"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The photo. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessEnvelope"] & {
+                        data?: components["schemas"]["Photo"];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    photosUpdate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["idPath"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PhotoUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Updated photo. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessEnvelope"] & {
+                        data?: components["schemas"]["Photo"];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    photosDelete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["idPath"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Photo deleted. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    photosUpdatePatch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["idPath"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PhotoUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Updated photo. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessEnvelope"] & {
+                        data?: components["schemas"]["Photo"];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    rolesIndex: {
+        parameters: {
+            query?: {
+                /** @description Page number (default 1). Out-of-range pages return an empty set. */
+                page?: components["parameters"]["page"];
+                /** @description Items per page, 1–100 (default 20). */
+                per_page?: components["parameters"]["perPage"];
+                /** @description Comma-separated, `-` prefix = descending. Allowed: `id`, `name`. Defaults to `id` ascending when omitted or when it resolves to no whitelisted field. */
+                sort?: string;
+                /** @description Partial match. */
+                name?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A page of roles. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessEnvelope"] & {
+                        data?: {
+                            items?: components["schemas"]["Role"][];
+                            pagination?: components["schemas"]["Pagination"];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    rolesCreate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RoleCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Role created. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessEnvelope"] & {
+                        data?: components["schemas"]["Role"];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    rolesView: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["idPath"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The role with permissions. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessEnvelope"] & {
+                        data?: components["schemas"]["RoleWithPermissions"];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    rolesUpdate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["idPath"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RoleUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Updated role. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessEnvelope"] & {
+                        data?: components["schemas"]["Role"];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    rolesDelete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["idPath"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Role deleted. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    rolesUpdatePatch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["idPath"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RoleUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Updated role. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessEnvelope"] & {
+                        data?: components["schemas"]["Role"];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    permissionsIndex: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The whole catalog, ordered by name. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessEnvelope"] & {
+                        data?: components["schemas"]["Permission"][];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+}

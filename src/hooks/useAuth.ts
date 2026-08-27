@@ -9,6 +9,7 @@ import {
 } from '@/app/authSlice'
 import { useAppDispatch, useAppSelector } from '@/app/hooks'
 import { notifySuccess } from '@/app/notificationsSlice'
+import { paths } from '@/app/paths'
 import { toStoredTokens } from '@/contracts'
 import {
   useLoginMutation,
@@ -53,7 +54,7 @@ export function useAuth() {
   )
 
   const endSession = useCallback(
-    async (everywhere: boolean): Promise<void> => {
+    async (everywhere: boolean, notice: string | undefined): Promise<void> => {
       if (refreshToken !== null) {
         const request = everywhere ? logoutAllRequest : logoutRequest
         try {
@@ -64,7 +65,9 @@ export function useAuth() {
       }
       dispatch(loggedOut())
       dispatch(
-        notifySuccess(everywhere ? 'Signed out on all devices.' : 'You have been signed out.'),
+        notifySuccess(
+          notice ?? (everywhere ? 'Signed out on all devices.' : 'You have been signed out.'),
+        ),
       )
     },
     [refreshToken, logoutRequest, logoutAllRequest, dispatch],
@@ -76,11 +79,15 @@ export function useAuth() {
    * The navigation is part of signing out, not an extra a screen may forget:
    * `loggedOut` resets the RTK Query cache, so a screen left mounted would
    * re-issue its queries with no token behind it.
+   *
+   * `notice` replaces the wording for a sign-out the user did not ask for as
+   * such — changing a password ends every session, and "you have been signed
+   * out" on its own reads as though something went wrong.
    */
   const signOut = useCallback(
-    async (everywhere = false): Promise<void> => {
-      await endSession(everywhere)
-      void navigate('/login', { replace: true })
+    async (everywhere = false, notice?: string): Promise<void> => {
+      await endSession(everywhere, notice)
+      void navigate(paths.login, { replace: true })
     },
     [endSession, navigate],
   )

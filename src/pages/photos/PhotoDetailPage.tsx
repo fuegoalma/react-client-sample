@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 
 import { PhotoDeleteDialog } from '@/components/photos/PhotoDeleteDialog'
 import { PhotoFrame } from '@/components/photos/PhotoFrame'
@@ -12,8 +12,9 @@ import {
   fieldClass,
   type Crumb,
 } from '@/components'
+import { paths } from '@/app/paths'
 import { photoUpdateSchema, type PhotoUpdateValues } from '@/forms'
-import { useApiForm, usePermissions } from '@/hooks'
+import { useApiForm, useNumericParam, usePermissions } from '@/hooks'
 import { useAlbumQuery, usePhotoQuery, useUpdatePhotoMutation } from '@/repositories'
 
 /**
@@ -25,15 +26,14 @@ import { useAlbumQuery, usePhotoQuery, useUpdatePhotoMutation } from '@/reposito
  * the caller owns the photo, which is what its base abilities depend on.
  */
 export function PhotoDetailPage() {
-  const { albumId, photoId } = useParams()
-  const album = Number(albumId)
-  const id = Number(photoId)
+  const { id: album, skip: skipAlbum } = useNumericParam('albumId')
+  const { id, skip } = useNumericParam('photoId')
   const navigate = useNavigate()
 
-  const { data: photo, error, isLoading } = usePhotoQuery(id, { skip: Number.isNaN(id) })
+  const { data: photo, error, isLoading } = usePhotoQuery(id, { skip })
   // For the trail only, and served from the cache: the album page is the only
   // route to this screen.
-  const { data: parentAlbum } = useAlbumQuery(album, { skip: Number.isNaN(album) })
+  const { data: parentAlbum } = useAlbumQuery(album, { skip: skipAlbum })
   const [updatePhoto, { isLoading: isSaving }] = useUpdatePhotoMutation()
   const { photos: policy, albums: albumPolicy, ownsAlbum } = usePermissions()
   const [confirmingDelete, setConfirmingDelete] = useState(false)
@@ -44,7 +44,7 @@ export function PhotoDetailPage() {
 
   const {
     register,
-    handleSubmit,
+    onSubmitHandler,
     submit,
     formState: { errors },
   } = useApiForm(
@@ -59,7 +59,7 @@ export function PhotoDetailPage() {
   const breadcrumbs: readonly Crumb[] = [
     // The same rule as the album screen's own trail, asked of the same policy.
     albumPolicy.albumsCrumb(isOwn),
-    { label: parentAlbum?.title ?? 'Album', to: `/albums/${String(album)}` },
+    { label: parentAlbum?.title ?? 'Album', to: paths.album(album) },
     { label: photo?.title ?? '' },
   ]
 
@@ -78,7 +78,7 @@ export function PhotoDetailPage() {
             subtitle="Only the title can change — the album and the stored file are immutable."
             actions={
               <>
-                <Link className="btn btn-sm btn-outline-secondary" to={`/albums/${album}`}>
+                <Link className="btn btn-sm btn-outline-secondary" to={paths.album(album)}>
                   Back to album
                 </Link>
                 {canDelete && (
@@ -124,7 +124,7 @@ export function PhotoDetailPage() {
                 </dl>
 
                 {canEdit ? (
-                  <form onSubmit={(event) => void handleSubmit(onSubmit)(event)} noValidate>
+                  <form onSubmit={onSubmitHandler(onSubmit)} noValidate>
                     <FormAlert error={errors.root} />
                     <FormField id="photo-title" label="Title" error={errors.title}>
                       <input
@@ -153,7 +153,7 @@ export function PhotoDetailPage() {
             }}
             onDeleted={() => {
               // The photo is gone, so its own screen cannot stay on display.
-              void navigate(`/albums/${album}`, { replace: true })
+              void navigate(paths.album(album), { replace: true })
             }}
           />
         </>

@@ -11,7 +11,7 @@ PROD_API_URL    ?= http://localhost:8084
         build build-demo preview size storybook build-storybook screenshots \
         prod-build prod-run \
         test test-coverage test-unit test-functional test-contract test-one test-e2e e2e-install \
-        sync-spec spec-verify \
+        sync-spec spec-verify spec-drift \
         cs-check cs-fix typecheck check clean
 
 help:
@@ -37,8 +37,9 @@ help:
 	@echo "  test-unit            Run unit tests only"
 	@echo "  test-functional      Run functional tests only"
 	@echo "  test-contract        Run the OpenAPI contract tests only"
-	@echo "  sync-spec            Refetch the OpenAPI document and regenerate its types"
+	@echo "  sync-spec            Refetch the OpenAPI document from SPEC_URL, regenerate types"
 	@echo "  spec-verify          Check the committed types still match the committed spec"
+	@echo "  spec-drift           Ask SPEC_URL whether that spec has moved (read-only)"
 	@echo "  test-one file=<path> Run a single test file"
 	@echo "  test-e2e             Run the Playwright suite against the running stack (host)"
 	@echo "                       Set E2E_ADMIN_EMAIL in .env to include the RBAC screens"
@@ -120,21 +121,54 @@ build-storybook:
 
 # --- the API contract ------------------------------------------------------
 
-# Refetches the OpenAPI document from a running API and regenerates the types
-# the contract suite checks against. The copy is committed so CI — which has no
-# API — can still run those tests.
-API_URL ?= http://localhost:8084
+# Where the OpenAPI document is read from — by `sync-spec`, by `spec-drift`, and
+# by `.github/workflows/spec-drift.yml` through the API_SPEC_URL repository
+# variable. One source for all three, so what CI compares against and what you
+# refresh from cannot be two different documents.
+#
+# It is the API repository's own committed file rather than a running instance:
+# `config/openapi.yaml` is what the API serves at `/docs/openapi.yaml`, and a
+# file under source control needs no stack up and is reachable from CI.
+# Override to ask an instance instead — a local one, or another environment:
+#
+#   make sync-spec SPEC_URL=http://localhost:8084/docs/openapi.yaml
+SPEC_URL ?= https://raw.githubusercontent.com/fuegoalma/yii2-rest-api-sample/master/config/openapi.yaml
 
+# Refetches the document and regenerates the types the contract suite checks
+# against. Both halves are committed, so CI can run those tests with no API.
 sync-spec:
-	curl -fsS $(API_URL)/docs/openapi.yaml -o tests/contract/openapi.yaml
+	curl -fsS $(SPEC_URL) -o tests/contract/openapi.yaml
 	$(APP) npx openapi-typescript tests/contract/openapi.yaml -o tests/contract/schema.d.ts
 	@echo "→ spec and types refreshed; run 'make test-contract' to see what moved"
 
 # The half of `sync-spec` that needs no API: are the committed types the ones
 # this committed spec generates? Catches a yaml refreshed without its second
 # half, and a schema.d.ts edited by hand.
+#
+# What it cannot catch, by construction, is the API moving: it compares the two
+# halves of one snapshot, and both halves stay consistent with each other long
+# after the document they were taken from has changed. That is `spec-drift`.
 spec-verify:
 	$(APP) npm run spec:verify
+
+# Has the document moved since it was vendored?
+#
+# Read-only, which is the whole point: `sync-spec` overwrites both halves of the
+# snapshot and leaves you to work out what changed, so it cannot be used to just
+# *ask*. This fetches to a temporary file and reports, and answers non-zero when
+# the document has moved so a script can use it too.
+#
+# Reads SPEC_URL, the same document `sync-spec` refreshes from and the workflow
+# checks daily — asking one source and refreshing from another is how a drift
+# check ends up reporting on something nobody vendored.
+SPEC_TMP ?= .openapi.live.yaml
+
+spec-drift:
+	@curl -fsS $(SPEC_URL) -o $(SPEC_TMP) \
+	  || { echo "→ could not fetch $(SPEC_URL) — check the URL, or set SPEC_URL"; exit 1; }
+	@diff -u tests/contract/openapi.yaml $(SPEC_TMP) \
+	  && { rm -f $(SPEC_TMP); echo "→ the vendored document still matches $(SPEC_URL)"; } \
+	  || { rm -f $(SPEC_TMP); echo "→ the document has moved; run 'make sync-spec', then 'make test-contract'"; exit 1; }
 
 test-contract:
 	$(APP) npm run test:contract

@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 
-import { Modal } from './Modal'
+import { Modal, ModalCancelButton, ModalHeader } from './Modal'
 
 interface ConfirmDialogProps {
   readonly open: boolean
@@ -34,26 +34,10 @@ export function ConfirmDialog({
   return (
     <Modal title={title} onClose={onCancel}>
       <div className="modal-content">
-        <div className="modal-header">
-          <h2 className="modal-title h5">{title}</h2>
-          <button
-            type="button"
-            className="btn-close"
-            aria-label="Close"
-            onClick={onCancel}
-            disabled={isBusy}
-          />
-        </div>
+        <ModalHeader title={title} onClose={onCancel} disabled={isBusy} />
         <div className="modal-body">{children}</div>
         <div className="modal-footer">
-          <button
-            type="button"
-            className="btn btn-outline-secondary"
-            onClick={onCancel}
-            disabled={isBusy}
-          >
-            Cancel
-          </button>
+          <ModalCancelButton onClick={onCancel} disabled={isBusy} />
           <button
             type="button"
             className={`btn btn-${confirmVariant}`}

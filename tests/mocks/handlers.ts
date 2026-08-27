@@ -6,11 +6,16 @@ import {
   API_ORIGIN,
   CURRENT_USER_ID,
   db,
+  endAllSessions,
+  issueOneTimeToken,
+  mockNow,
   nextId,
   type MockAlbum,
+  type MockOneTimeToken,
   type MockPhoto,
   type MockRole,
   type MockUser,
+  type TokenPurpose,
 } from './db'
 import { authed, byId, can, canOn } from './guards'
 import {
@@ -18,6 +23,7 @@ import {
   created,
   fail,
   forbidden,
+  invalidCredentials,
   noContent,
   notFound,
   ok,
@@ -37,11 +43,13 @@ function toAlbum(album: MockAlbum): Album {
     title: album.title,
     is_deleted: album.is_deleted,
     delete_reason: album.delete_reason,
+    created_at: album.created_at,
+    updated_at: album.updated_at,
   }
 }
 
 function toPhoto(photo: MockPhoto): Photo {
-  return { id: photo.id, title: photo.title, url: photo.url }
+  return { id: photo.id, title: photo.title, url: photo.url, created_at: photo.created_at }
 }
 
 function toUser(user: MockUser): User {
@@ -50,6 +58,9 @@ function toUser(user: MockUser): User {
     first_name: user.first_name,
     last_name: user.last_name,
     email: user.email,
+    created_at: user.created_at,
+    updated_at: user.updated_at,
+    email_verified: user.email_verified,
   }
 }
 
@@ -103,9 +114,34 @@ function createMockUser(body: Record<string, string | undefined>): MockUser | Re
     email: body['email'] ?? '',
     password: body['password'] ?? '',
     roles: [],
+    created_at: mockNow(),
+    updated_at: mockNow(),
+    // A fresh account is unconfirmed: the API queues the message and records
+    // nothing until the token comes back.
+    email_verified: false,
   }
   db.users.push(user)
   return user
+}
+
+/**
+ * Spends a single-use token, or says why it cannot be spent.
+ *
+ * The lookup is scoped by purpose, so a password-reset token presented to the
+ * verification endpoint is refused rather than accepted for the wrong thing.
+ * "Unknown" and "already spent" answer identically on purpose — the difference
+ * would tell a caller which tokens once existed.
+ */
+function redeem(token: string | undefined, purpose: TokenPurpose): MockOneTimeToken | Response {
+  const match = db.oneTimeTokens.find(
+    (candidate) => candidate.token === token && candidate.purpose === purpose,
+  )
+
+  if (match === undefined || match.used) return unauthorized(`${purpose}.invalid`)
+  if (match.expired) return unauthorized(`${purpose}.expired`)
+
+  match.used = true
+  return match
 }
 
 /* -- handlers -------------------------------------------------------------- */
@@ -119,7 +155,7 @@ export const handlers = [
     const body = (await request.json()) as { email?: string; password?: string }
     const user = db.users.find((candidate) => candidate.email === body.email)
 
-    if (user === undefined || user.password !== body.password) return unauthorized()
+    if (user === undefined || user.password !== body.password) return invalidCredentials()
     return ok(issuePair(user.id))
   }),
 
@@ -134,10 +170,10 @@ export const handlers = [
 
   http.post(`${BASE}/auth/refresh`, async ({ request }) => {
     const body = (await request.json()) as { refresh_token?: string }
-    if (db.refreshFails) return unauthorized()
+    if (db.refreshFails) return unauthorized('refresh_token.invalid')
 
     const index = db.sessions.findIndex((session) => session.refreshToken === body.refresh_token)
-    if (index === -1) return unauthorized()
+    if (index === -1) return unauthorized('refresh_token.invalid')
 
     // Rotation: the presented token is single-use.
     const [session] = db.sessions.splice(index, 1)
@@ -152,6 +188,49 @@ export const handlers = [
 
   http.post(`${BASE}/auth/logout-all`, () => {
     db.sessions = []
+    return noContent()
+  }),
+
+  /**
+   * Answered 204 whether or not the address is registered — telling the two
+   * apart would make this an account-enumeration oracle.
+   */
+  http.post(`${BASE}/auth/forgot-password`, async ({ request }) => {
+    if (db.rateLimited) return tooManyRequests()
+
+    const body = (await request.json()) as { email?: string }
+    const user = db.users.find((candidate) => candidate.email === body.email)
+    if (user !== undefined) issueOneTimeToken(user.id, 'password_reset')
+
+    return noContent()
+  }),
+
+  http.post(`${BASE}/auth/reset-password`, async ({ request }) => {
+    if (db.rateLimited) return tooManyRequests()
+
+    const body = (await request.json()) as { token?: string; password?: string }
+    const redeemed = redeem(body.token, 'password_reset')
+    if (redeemed instanceof Response) return redeemed
+
+    const user = db.users.find((candidate) => candidate.id === redeemed.userId)
+    if (user === undefined) return unauthorized('password_reset.invalid')
+
+    user.password = body.password ?? ''
+    endAllSessions(user.id)
+    return noContent()
+  }),
+
+  http.post(`${BASE}/auth/verify-email`, async ({ request }) => {
+    if (db.rateLimited) return tooManyRequests()
+
+    const body = (await request.json()) as { token?: string }
+    const redeemed = redeem(body.token, 'email_verification')
+    if (redeemed instanceof Response) return redeemed
+
+    const user = db.users.find((candidate) => candidate.id === redeemed.userId)
+    if (user === undefined) return unauthorized('email_verification.invalid')
+
+    user.email_verified = true
     return noContent()
   }),
 
@@ -183,6 +262,35 @@ export const handlers = [
     authed(({ caller }) => {
       const payload: MePermissions = { roles: caller.roles, permissions: db.callerPermissions }
       return ok(payload)
+    }),
+  ),
+
+  /**
+   * The caller's own password. No id in the route, so it cannot be aimed
+   * elsewhere — and every session ends, this one included.
+   */
+  http.put(
+    `${BASE}/users/me/password`,
+    authed(async ({ request, caller }) => {
+      const body = (await request.json()) as { current_password?: string; password?: string }
+
+      if (caller.password !== body.current_password) {
+        return invalidCredentials('The current password is incorrect.')
+      }
+
+      caller.password = body.password ?? ''
+      caller.updated_at = mockNow()
+      endAllSessions(caller.id)
+      return noContent()
+    }),
+  ),
+
+  /** Idempotent, and a no-op once the address is confirmed. 204 either way. */
+  http.post(
+    `${BASE}/users/me/resend-verification`,
+    authed(({ caller }) => {
+      if (!caller.email_verified) issueOneTimeToken(caller.id, 'email_verification')
+      return noContent()
     }),
   ),
 
@@ -314,9 +422,9 @@ export const handlers = [
         url: new URL(request.url),
         items: db.albums
           .filter((album) => album.user_id === caller.id && !album.is_deleted)
-          .map((album) => ({ ...toAlbum(album), created_at: album.created_at })),
+          .map(toAlbum),
         likeFilters: ['title'],
-        sortable: ['id', 'user_id', 'title', 'created_at', 'updated_at'],
+        sortable: ['id', 'title', 'created_at', 'updated_at'],
       })
     }),
   ),
@@ -331,14 +439,12 @@ export const handlers = [
         url,
         items: visibleAlbums()
           .filter((album) => album.is_deleted === wantsDeleted)
-          .map((album) => ({
-            ...toAlbum(album),
-            user_id: album.user_id,
-            created_at: album.created_at,
-          })),
+          // `user_id` rides along for the filter only: the API accepts it as a
+          // filter but stopped accepting it as a sort, and never returns it.
+          .map((album) => ({ ...toAlbum(album), user_id: album.user_id })),
         likeFilters: ['title'],
         exactFilters: ['user_id'],
-        sortable: ['id', 'user_id', 'title', 'created_at', 'updated_at'],
+        sortable: ['id', 'title', 'created_at', 'updated_at'],
       })
     }),
   ),
@@ -357,7 +463,8 @@ export const handlers = [
         title: body.title,
         is_deleted: false,
         delete_reason: null,
-        created_at: Date.now(),
+        created_at: mockNow(),
+        updated_at: mockNow(),
       }
       db.albums.push(album)
       return created(toAlbum(album))
@@ -445,9 +552,7 @@ export const handlers = [
 
       return paginate({
         url: new URL(request.url),
-        items: db.photos
-          .filter((photo) => photo.album_id === album.id)
-          .map((photo) => ({ ...toPhoto(photo), created_at: photo.created_at })),
+        items: db.photos.filter((photo) => photo.album_id === album.id).map(toPhoto),
         likeFilters: ['title'],
         sortable: ['id', 'title', 'created_at'],
       })
@@ -474,7 +579,7 @@ export const handlers = [
         album_id: album.id,
         title,
         url: `${BASE}/uploads/albums/${album.id}/${slugify(title)}.webp`,
-        created_at: Date.now(),
+        created_at: mockNow(),
       }
       db.photos.push(photo)
       return created(toPhoto(photo))

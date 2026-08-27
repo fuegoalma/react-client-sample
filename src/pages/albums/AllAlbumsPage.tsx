@@ -5,6 +5,7 @@ import { AlbumDeleteButton } from '@/components/albums/AlbumDeleteButton'
 import { AlbumDeleteDialog } from '@/components/albums/AlbumDeleteDialog'
 import { ALBUM_BASE_COLUMNS } from '@/components/albums/albumColumns'
 import { ListScreen, PageHeader, type Column } from '@/components'
+import { paths } from '@/app/paths'
 import { albumListSpec, ALBUM_DELETION_FILTER, withFilter } from '@/forms'
 import { useListQuery, useMutationAction, usePermissions } from '@/hooks'
 import { useAlbumsQuery, useRestoreAlbumMutation } from '@/repositories'
@@ -76,7 +77,7 @@ export function AllAlbumsPage() {
 
         return (
           <div className="dataTable__actions">
-            <Link className="btn btn-sm btn-outline-secondary" to={`/albums/${album.id}`}>
+            <Link className="btn btn-sm btn-outline-secondary" to={paths.album(album.id)}>
               Open
             </Link>
 

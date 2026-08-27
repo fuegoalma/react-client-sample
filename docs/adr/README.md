@@ -13,3 +13,4 @@ undo it. They are deliberately short.
 | [0005](0005-mock-api-as-independent-mirror.md)   | The mock API is a re-implementation, not fixtures           |
 | [0006](0006-runtime-configuration.md)            | The API URL is read at runtime, not built in                |
 | [0007](0007-openapi-as-a-checked-oracle.md)      | The OpenAPI document is checked against, not generated from |
+| [0008](0008-branch-on-the-error-code.md)         | Branch on the API's error code, never on its message        |

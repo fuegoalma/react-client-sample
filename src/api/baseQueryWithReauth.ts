@@ -1,17 +1,12 @@
 import type { FetchArgs } from '@reduxjs/toolkit/query'
 import { Mutex } from 'async-mutex'
 
-import type { AuthState } from '@/app/authSlice'
 import { credentialsReceived, loggedOut } from '@/app/authSlice'
 import { notifyError } from '@/app/notificationsSlice'
 import { toStoredTokens } from '@/contracts'
 import type { TokenPair } from '@/types'
 
-import { envelopeBaseQuery, type AppBaseQuery } from './baseQuery'
-
-interface AuthAwareState {
-  readonly auth: AuthState
-}
+import { envelopeBaseQuery, type AppBaseQuery, type AuthAwareState } from './baseQuery'
 
 /**
  * Serialises refreshes. The API rotates refresh tokens and treats a re-used one

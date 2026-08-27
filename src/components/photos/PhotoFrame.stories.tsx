@@ -23,6 +23,7 @@ export const WithAnImage: Story = {
     photo: {
       id: 100,
       title: 'Beach sunset',
+      created_at: '2026-02-28 20:11:48',
       // Inline so the story needs no server and no network.
       url:
         'data:image/svg+xml;utf8,' +
@@ -36,7 +37,9 @@ export const WithAnImage: Story = {
 
 /** What an album shows for a record whose file the API never stored. */
 export const WithoutAnImage: Story = {
-  args: { photo: { id: 101, title: 'Missing file', url: null } },
+  args: {
+    photo: { id: 101, title: 'Missing file', url: null, created_at: '2026-02-28 20:11:48' },
+  },
 }
 
 /** Tiles below the fold defer their fetch; a detail view's image does not. */

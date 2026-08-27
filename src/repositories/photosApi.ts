@@ -1,7 +1,7 @@
 import { ListQueryBuilder } from '@/services/listQuery'
 import type { ListQuery, PaginatedPayload, Photo, PhotoUpdateRequest } from '@/types'
 
-import { baseApi, LIST_ID } from './baseApi'
+import { baseApi, listTags, memberTags, LIST_ID } from './baseApi'
 
 /** Photos are a child resource of albums — there is no flat collection. */
 export interface AlbumPhotosArgs {
@@ -15,6 +15,13 @@ export interface UploadPhotoArgs {
   readonly file: File
 }
 
+/**
+ * Photos have no flat collection — every list is an album's — so the collection
+ * tag has to name the album it belongs to, or deleting a photo would invalidate
+ * every album's grid at once.
+ */
+const albumPhotosId = (albumId: number): string => `${LIST_ID}-${String(albumId)}`
+
 export const photosApi = baseApi.injectEndpoints({
   endpoints: (build) => ({
     albumPhotos: build.query<PaginatedPayload<Photo>, AlbumPhotosArgs>({
@@ -23,10 +30,8 @@ export const photosApi = baseApi.injectEndpoints({
         method: 'GET',
         params: ListQueryBuilder.toParams(query),
       }),
-      providesTags: (result, _error, { albumId }) => [
-        { type: 'Photo' as const, id: `${LIST_ID}-${albumId}` },
-        ...(result?.items ?? []).map((photo) => ({ type: 'Photo' as const, id: photo.id })),
-      ],
+      providesTags: (result, _error, { albumId }) =>
+        listTags('Photo', result, albumPhotosId(albumId)),
     }),
 
     photo: build.query<Photo, number>({
@@ -47,7 +52,7 @@ export const photosApi = baseApi.injectEndpoints({
         return { url: `/albums/${albumId}/photos`, method: 'POST', body }
       },
       invalidatesTags: (_result, _error, { albumId }) => [
-        { type: 'Photo', id: `${LIST_ID}-${albumId}` },
+        { type: 'Photo', id: albumPhotosId(albumId) },
         { type: 'Album', id: albumId },
       ],
     }),
@@ -56,8 +61,7 @@ export const photosApi = baseApi.injectEndpoints({
     updatePhoto: build.mutation<Photo, { id: number; albumId: number; body: PhotoUpdateRequest }>({
       query: ({ id, body }) => ({ url: `/photos/${id}`, method: 'PUT', body }),
       invalidatesTags: (_result, _error, { id, albumId }) => [
-        { type: 'Photo', id },
-        { type: 'Photo', id: `${LIST_ID}-${albumId}` },
+        ...memberTags('Photo', id, albumPhotosId(albumId)),
         { type: 'Album', id: albumId },
       ],
     }),
@@ -98,8 +102,7 @@ export const photosApi = baseApi.injectEndpoints({
         }
       },
       invalidatesTags: (_result, _error, { id, albumId }) => [
-        { type: 'Photo', id },
-        { type: 'Photo', id: `${LIST_ID}-${albumId}` },
+        ...memberTags('Photo', id, albumPhotosId(albumId)),
         { type: 'Album', id: albumId },
       ],
     }),

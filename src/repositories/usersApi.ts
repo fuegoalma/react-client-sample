@@ -1,5 +1,6 @@
 import { ListQueryBuilder } from '@/services/listQuery'
 import type {
+  ChangePasswordRequest,
   ListQuery,
   Me,
   MePermissions,
@@ -12,7 +13,7 @@ import type {
   UserWithAlbums,
 } from '@/types'
 
-import { baseApi, LIST_ID } from './baseApi'
+import { baseApi, listTags, memberTags, LIST_ID } from './baseApi'
 
 export const usersApi = baseApi.injectEndpoints({
   endpoints: (build) => ({
@@ -34,10 +35,7 @@ export const usersApi = baseApi.injectEndpoints({
         method: 'GET',
         params: ListQueryBuilder.toParams(params),
       }),
-      providesTags: (result) => [
-        { type: 'User' as const, id: LIST_ID },
-        ...(result?.items ?? []).map((user) => ({ type: 'User' as const, id: user.id })),
-      ],
+      providesTags: (result) => listTags('User', result),
     }),
 
     user: build.query<UserWithAlbums, number>({
@@ -53,18 +51,13 @@ export const usersApi = baseApi.injectEndpoints({
     updateUser: build.mutation<User, { id: number; body: UserUpdateRequest }>({
       query: ({ id, body }) => ({ url: `/users/${id}`, method: 'PUT', body }),
       // Updating yourself changes /users/me too, so refresh it unconditionally.
-      invalidatesTags: (_result, _error, { id }) => [
-        { type: 'User', id },
-        { type: 'User', id: LIST_ID },
-        'Me',
-      ],
+      invalidatesTags: (_result, _error, { id }) => [...memberTags('User', id), 'Me'],
     }),
 
     deleteUser: build.mutation<null, number>({
       query: (id) => ({ url: `/users/${id}`, method: 'DELETE' }),
       invalidatesTags: (_result, _error, id) => [
-        { type: 'User', id },
-        { type: 'User', id: LIST_ID },
+        ...memberTags('User', id),
         { type: 'Album', id: LIST_ID },
       ],
     }),
@@ -84,6 +77,28 @@ export const usersApi = baseApi.injectEndpoints({
         'MePermissions',
       ],
     }),
+
+    /**
+     * Changes the caller's own password. There is no id in the route, so it
+     * cannot be aimed at another account.
+     *
+     * Invalidates nothing on purpose: the API ends every session of the
+     * account, this one included, so the cache is about to be reset by the
+     * sign-out that has to follow.
+     */
+    changeMyPassword: build.mutation<null, ChangePasswordRequest>({
+      query: (body) => ({ url: '/users/me/password', method: 'PUT', body }),
+    }),
+
+    /**
+     * Issues a fresh confirmation token for the caller's own address, retiring
+     * any earlier one. A no-op once the address is confirmed, so it cannot be
+     * used to spray mail at it — and 204 either way, which is why nothing here
+     * may report that a message was actually sent.
+     */
+    resendVerification: build.mutation<null, void>({
+      query: () => ({ url: '/users/me/resend-verification', method: 'POST' }),
+    }),
   }),
 })
 
@@ -100,4 +115,6 @@ export const {
   useDeleteUserMutation,
   useUserRolesQuery,
   useReplaceUserRolesMutation,
+  useChangeMyPasswordMutation,
+  useResendVerificationMutation,
 } = usersApi

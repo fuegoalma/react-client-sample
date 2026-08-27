@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 
 import { UsersPage } from '@/pages/users/UsersPage'
 
-import { db, grantRole, nextId } from '../mocks/db'
+import { db, grantRole, mockTime, nextId } from '../mocks/db'
 import { renderWithProviders } from '../utils/renderWithProviders'
 
 /** Enough accounts to force the API to paginate at its 20-per-page default. */
@@ -17,6 +17,9 @@ function seedUsers(count: number): void {
       email: `user${id}@example.com`,
       password: 'secret123',
       roles: [],
+      created_at: mockTime(index),
+      updated_at: mockTime(index),
+      email_verified: true,
     })
   }
 }

@@ -8,7 +8,7 @@ import type {
   RoleWithPermissions,
 } from '@/types'
 
-import { baseApi, LIST_ID } from './baseApi'
+import { baseApi, listTags, memberTags, LIST_ID } from './baseApi'
 
 export const rolesApi = baseApi.injectEndpoints({
   endpoints: (build) => ({
@@ -19,10 +19,7 @@ export const rolesApi = baseApi.injectEndpoints({
         method: 'GET',
         params: ListQueryBuilder.toParams(params),
       }),
-      providesTags: (result) => [
-        { type: 'Role' as const, id: LIST_ID },
-        ...(result?.items ?? []).map((role) => ({ type: 'Role' as const, id: role.id })),
-      ],
+      providesTags: (result) => listTags('Role', result),
     }),
 
     /** Includes the role's permission set. Requires `role.view` (super admin). */
@@ -39,20 +36,12 @@ export const rolesApi = baseApi.injectEndpoints({
     /** Re-composing a role changes what its holders may do, including the caller. */
     updateRole: build.mutation<Role, { id: number; body: RoleUpdateRequest }>({
       query: ({ id, body }) => ({ url: `/roles/${id}`, method: 'PUT', body }),
-      invalidatesTags: (_result, _error, { id }) => [
-        { type: 'Role', id },
-        { type: 'Role', id: LIST_ID },
-        'MePermissions',
-      ],
+      invalidatesTags: (_result, _error, { id }) => [...memberTags('Role', id), 'MePermissions'],
     }),
 
     deleteRole: build.mutation<null, number>({
       query: (id) => ({ url: `/roles/${id}`, method: 'DELETE' }),
-      invalidatesTags: (_result, _error, id) => [
-        { type: 'Role', id },
-        { type: 'Role', id: LIST_ID },
-        'MePermissions',
-      ],
+      invalidatesTags: (_result, _error, id) => [...memberTags('Role', id), 'MePermissions'],
     }),
   }),
 })

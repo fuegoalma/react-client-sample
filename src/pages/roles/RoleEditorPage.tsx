@@ -9,8 +9,9 @@ import {
   fieldClass,
 } from '@/components'
 import { PermissionPicker } from '@/components/roles/PermissionPicker'
+import { paths } from '@/app/paths'
 import { roleCreateSchema, withoutEmpty, type RoleCreateValues } from '@/forms'
-import { useApiForm, usePermissions, useToggleSelection } from '@/hooks'
+import { useApiForm, useNumericParam, usePermissions, useToggleSelection } from '@/hooks'
 import {
   useCreateRoleMutation,
   usePermissionsQuery,
@@ -26,12 +27,15 @@ import {
  * the name field.
  */
 export function RoleEditorPage() {
+  // Composing and editing are the same screen, told apart by whether the
+  // address names a role at all — not by whether that name parses, because
+  // /roles/abc is a broken edit, not a request to create something.
   const { roleId } = useParams()
   const isNew = roleId === undefined
-  const id = Number(roleId)
+  const { id, skip } = useNumericParam('roleId')
   const navigate = useNavigate()
 
-  const { data: role, error, isLoading } = useRoleQuery(id, { skip: isNew || Number.isNaN(id) })
+  const { data: role, error, isLoading } = useRoleQuery(id, { skip })
   const { data: catalog = [], isLoading: loadingCatalog } = usePermissionsQuery()
 
   const [createRole, { isLoading: isCreating }] = useCreateRoleMutation()
@@ -48,7 +52,7 @@ export function RoleEditorPage() {
 
   const {
     register,
-    handleSubmit,
+    onSubmitHandler,
     submit,
     formState: { errors },
   } = useApiForm(
@@ -75,7 +79,7 @@ export function RoleEditorPage() {
         {
           success: (created) => `Role “${created.name}” was created.`,
           onDone: (created) => {
-            void navigate(`/roles/${created.id}`, { replace: true })
+            void navigate(paths.role(created.id), { replace: true })
           },
         },
       )
@@ -100,23 +104,19 @@ export function RoleEditorPage() {
     <QueryBoundary isLoading={(!isNew && isLoading) || loadingCatalog} error={error}>
       <PageHeader
         breadcrumbs={[
-          { label: 'Roles', to: '/roles' },
+          { label: 'Roles', to: paths.roles },
           { label: isNew ? 'Compose a role' : (role?.name ?? '') },
         ]}
         title={isNew ? 'Compose a role' : `Role: ${role?.name ?? ''}`}
         subtitle="Pick the permissions this role grants. Access is flat — holders get the union of all their roles."
         actions={
-          <Link className="btn btn-sm btn-outline-secondary" to="/roles">
+          <Link className="btn btn-sm btn-outline-secondary" to={paths.roles}>
             Back to roles
           </Link>
         }
       />
 
-      <form
-        className="appCard p-3"
-        onSubmit={(event) => void handleSubmit(onSubmit)(event)}
-        noValidate
-      >
+      <form className="appCard p-3" onSubmit={onSubmitHandler(onSubmit)} noValidate>
         <FormAlert error={errors.root} />
 
         <div className="row g-3">

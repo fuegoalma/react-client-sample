@@ -1,7 +1,8 @@
-import { Link, useParams } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 
 import { PageHeader, QueryBoundary, SubmitButton } from '@/components'
-import { useMutationAction, useToggleSelection } from '@/hooks'
+import { paths } from '@/app/paths'
+import { useMutationAction, useNumericParam, useToggleSelection } from '@/hooks'
 import {
   useReplaceUserRolesMutation,
   useRolesQuery,
@@ -19,9 +20,7 @@ import { MAX_PER_PAGE } from '@/types'
  * invariant (409) — and both are surfaced with the API's own wording.
  */
 export function UserRolesPage() {
-  const { userId } = useParams()
-  const id = Number(userId)
-  const skip = Number.isNaN(id)
+  const { id, skip } = useNumericParam('userId')
 
   const { data: user, isLoading: loadingUser, error } = useUserQuery(id, { skip })
   const { data: assigned, isLoading: loadingAssigned } = useUserRolesQuery(id, { skip })
@@ -50,14 +49,14 @@ export function UserRolesPage() {
         <>
           <PageHeader
             breadcrumbs={[
-              { label: 'Users', to: '/users' },
-              { label: `${user.first_name} ${user.last_name}`, to: `/users/${String(id)}` },
+              { label: 'Users', to: paths.users },
+              { label: `${user.first_name} ${user.last_name}`, to: paths.user(id) },
               { label: 'Roles' },
             ]}
             title="Roles"
             subtitle={`${user.first_name} ${user.last_name} — ${user.email}`}
             actions={
-              <Link className="btn btn-sm btn-outline-secondary" to={`/users/${id}`}>
+              <Link className="btn btn-sm btn-outline-secondary" to={paths.user(id)}>
                 Back to user
               </Link>
             }

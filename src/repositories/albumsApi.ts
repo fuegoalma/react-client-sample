@@ -9,7 +9,7 @@ import type {
   PaginatedPayload,
 } from '@/types'
 
-import { baseApi, LIST_ID } from './baseApi'
+import { baseApi, listTags, memberTags, LIST_ID } from './baseApi'
 
 /**
  * `DELETE /albums/{id}` is one route with two outcomes decided server-side by
@@ -28,10 +28,7 @@ export const albumsApi = baseApi.injectEndpoints({
         method: 'GET',
         params: ListQueryBuilder.toParams(params),
       }),
-      providesTags: (result) => [
-        { type: 'Album' as const, id: LIST_ID },
-        ...(result?.items ?? []).map((album) => ({ type: 'Album' as const, id: album.id })),
-      ],
+      providesTags: (result) => listTags('Album', result),
     }),
 
     /** Every album in the system. Requires `album.index.any`. */
@@ -41,10 +38,7 @@ export const albumsApi = baseApi.injectEndpoints({
         method: 'GET',
         params: ListQueryBuilder.toParams(params),
       }),
-      providesTags: (result) => [
-        { type: 'Album' as const, id: LIST_ID },
-        ...(result?.items ?? []).map((album) => ({ type: 'Album' as const, id: album.id })),
-      ],
+      providesTags: (result) => listTags('Album', result),
     }),
 
     album: build.query<AlbumView, number>({
@@ -59,10 +53,7 @@ export const albumsApi = baseApi.injectEndpoints({
 
     updateAlbum: build.mutation<Album, { id: number; body: AlbumUpdateRequest }>({
       query: ({ id, body }) => ({ url: `/albums/${id}`, method: 'PUT', body }),
-      invalidatesTags: (_result, _error, { id }) => [
-        { type: 'Album', id },
-        { type: 'Album', id: LIST_ID },
-      ],
+      invalidatesTags: (_result, _error, { id }) => memberTags('Album', id),
     }),
 
     deleteAlbum: build.mutation<null, DeleteAlbumArgs>({
@@ -71,21 +62,13 @@ export const albumsApi = baseApi.injectEndpoints({
         method: 'DELETE',
         ...(reason !== undefined && reason !== '' && { body: { reason } }),
       }),
-      invalidatesTags: (_result, _error, { id }) => [
-        { type: 'Album', id },
-        { type: 'Album', id: LIST_ID },
-        'Me',
-      ],
+      invalidatesTags: (_result, _error, { id }) => [...memberTags('Album', id), 'Me'],
     }),
 
     /** Lifts a pseudo-deletion after review. Requires `album.restore`. */
     restoreAlbum: build.mutation<Album, number>({
       query: (id) => ({ url: `/albums/${id}/restore`, method: 'POST' }),
-      invalidatesTags: (_result, _error, id) => [
-        { type: 'Album', id },
-        { type: 'Album', id: LIST_ID },
-        'Me',
-      ],
+      invalidatesTags: (_result, _error, id) => [...memberTags('Album', id), 'Me'],
     }),
   }),
 })

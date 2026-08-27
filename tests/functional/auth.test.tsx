@@ -34,9 +34,10 @@ describe('Signing in', () => {
     await user.type(screen.getByLabelText('Password'), 'wrong-password')
     await user.click(screen.getByRole('button', { name: 'Sign in' }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      /session is not valid|sign in again/i,
-    )
+    // The API's own wording reaches the user now: "sign in again" was the
+    // client's stand-in for a generic 401, and it read as though a session had
+    // expired when in fact the password was simply wrong.
+    expect(await screen.findByRole('alert')).toHaveTextContent(/invalid email or password/i)
     expect(selectIsAuthenticated(store.getState())).toBe(false)
   })
 
@@ -60,6 +61,29 @@ describe('Signing in', () => {
     await user.click(screen.getByRole('button', { name: 'Sign in' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent(/too many attempts/i)
+  })
+
+  it('says how long to wait, from the header rather than a guess', async () => {
+    // Readable only because the API exposes Retry-After to a cross-origin
+    // caller; before it did, this number could not be shown at all.
+    db.rateLimited = true
+    const { user } = renderWithProviders(<LoginPage />, { authenticated: false })
+
+    await user.type(screen.getByLabelText('Email'), 'ada@example.com')
+    await user.type(screen.getByLabelText('Password'), 'secret123')
+    await user.click(screen.getByRole('button', { name: 'Sign in' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/wait 60 seconds/i)
+  })
+
+  it('offers a way out to someone who cannot remember their password', () => {
+    // The only route to recovery from the screen that turns them away.
+    renderWithProviders(<LoginPage />, { authenticated: false })
+
+    expect(screen.getByRole('link', { name: 'Forgot your password?' })).toHaveAttribute(
+      'href',
+      '/forgot-password',
+    )
   })
 })
 

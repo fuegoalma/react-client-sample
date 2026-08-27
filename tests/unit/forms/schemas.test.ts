@@ -2,15 +2,20 @@ import { describe, expect, it } from 'vitest'
 
 import {
   albumSchema,
+  changePasswordSchema,
+  forgotPasswordSchema,
   hasAllowedImageExtension,
   loginSchema,
+  MAX_UPLOAD_BYTES,
   PASSWORD_MISMATCH,
   photoUploadSchema,
   registerSchema,
+  resetPasswordSchema,
   roleCreateSchema,
   toUserPayload,
   userCreateSchema,
   userUpdateSchema,
+  verifyEmailSchema,
   withoutEmpty,
 } from '@/forms'
 
@@ -81,6 +86,95 @@ describe('registerSchema', () => {
 
   it('enforces the 255-character column limit on names', () => {
     expect(registerSchema.safeParse({ ...valid, first_name: 'x'.repeat(256) }).success).toBe(false)
+  })
+})
+
+describe('forgotPasswordSchema', () => {
+  it('accepts an address', () => {
+    expect(forgotPasswordSchema.safeParse({ email: 'ada@example.com' }).success).toBe(true)
+  })
+
+  it('rejects one the API would reject too', () => {
+    expect(forgotPasswordSchema.safeParse({ email: 'not-an-address' }).success).toBe(false)
+    expect(forgotPasswordSchema.safeParse({ email: '' }).success).toBe(false)
+  })
+})
+
+describe('resetPasswordSchema', () => {
+  const valid = { token: 'a'.repeat(64), password: 'secret123', password_confirm: 'secret123' }
+
+  it('accepts a token with a matching pair', () => {
+    expect(resetPasswordSchema.safeParse(valid).success).toBe(true)
+  })
+
+  it('trims a token copied out of an email with its whitespace', () => {
+    const result = resetPasswordSchema.safeParse({ ...valid, token: `  ${valid.token}\n` })
+
+    expect(result.success).toBe(true)
+    expect(result.data?.token).toBe(valid.token)
+  })
+
+  it('requires the token, and holds it to the length the API accepts', () => {
+    expect(resetPasswordSchema.safeParse({ ...valid, token: '' }).success).toBe(false)
+    expect(resetPasswordSchema.safeParse({ ...valid, token: 'a'.repeat(65) }).success).toBe(false)
+  })
+
+  it('reports a mistyped confirmation on the confirmation field', () => {
+    const result = resetPasswordSchema.safeParse({ ...valid, password_confirm: 'secret124' })
+
+    expect(result.success).toBe(false)
+    expect(result.error?.issues[0]?.path).toEqual(['password_confirm'])
+    expect(result.error?.issues[0]?.message).toBe(PASSWORD_MISMATCH)
+  })
+
+  it('holds the new password to the same rules as a registration', () => {
+    expect(
+      resetPasswordSchema.safeParse({ ...valid, password: 'short', password_confirm: 'short' })
+        .success,
+    ).toBe(false)
+  })
+})
+
+describe('verifyEmailSchema', () => {
+  it('asks for the token and nothing else', () => {
+    expect(verifyEmailSchema.safeParse({ token: 'a'.repeat(64) }).success).toBe(true)
+    expect(verifyEmailSchema.safeParse({ token: '' }).success).toBe(false)
+  })
+})
+
+describe('changePasswordSchema', () => {
+  const valid = {
+    current_password: 'secret123',
+    password: 'brand-new',
+    password_confirm: 'brand-new',
+  }
+
+  it('accepts the current password with a matching new pair', () => {
+    expect(changePasswordSchema.safeParse(valid).success).toBe(true)
+  })
+
+  it('requires the current password', () => {
+    expect(changePasswordSchema.safeParse({ ...valid, current_password: '' }).success).toBe(false)
+  })
+
+  it('does not hold the current password to today’s rules', () => {
+    // It is checked against what is stored, not proposed. An account whose
+    // password predates the six-character minimum must still be able to change it.
+    expect(changePasswordSchema.safeParse({ ...valid, current_password: 'old' }).success).toBe(true)
+  })
+
+  it('holds the new password to them', () => {
+    expect(
+      changePasswordSchema.safeParse({ ...valid, password: 'short', password_confirm: 'short' })
+        .success,
+    ).toBe(false)
+  })
+
+  it('reports a mistyped confirmation on the confirmation field', () => {
+    const result = changePasswordSchema.safeParse({ ...valid, password_confirm: 'other' })
+
+    expect(result.success).toBe(false)
+    expect(result.error?.issues[0]?.path).toEqual(['password_confirm'])
   })
 })
 
@@ -254,6 +348,21 @@ describe('photoUploadSchema', () => {
   it('is case-insensitive about the extension', () => {
     expect(hasAllowedImageExtension('PHOTO.JPEG')).toBe(true)
     expect(hasAllowedImageExtension('photo')).toBe(false)
+  })
+
+  it('refuses a file larger than the API stores, before uploading it', () => {
+    // Sending it anyway costs the upload and comes back a 422 — or, past PHP's
+    // own limit, a 413 from a body the application never even sees.
+    expect(
+      photoUploadSchema.safeParse({ title: 'x', file: file('a.png', MAX_UPLOAD_BYTES + 1) })
+        .success,
+    ).toBe(false)
+  })
+
+  it('accepts one of exactly the maximum size', () => {
+    expect(
+      photoUploadSchema.safeParse({ title: 'x', file: file('a.png', MAX_UPLOAD_BYTES) }).success,
+    ).toBe(true)
   })
 })
 

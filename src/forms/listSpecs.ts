@@ -46,7 +46,10 @@ export const userListSpec: ListSpec = {
  */
 export const albumListSpec: ListSpec = {
   filters: [partial('title', 'Album title')],
-  sortable: ['id', 'user_id', 'title', 'created_at', 'updated_at'],
+  // No `user_id`: the API stopped accepting it as a sort when the album
+  // summary shape stopped carrying an owner. It remains a *filter* the API
+  // offers and this client still does not need — see the note above.
+  sortable: ['id', 'title', 'created_at', 'updated_at'],
   defaultSort: [{ attribute: 'created_at', direction: 'desc' }],
 }
 

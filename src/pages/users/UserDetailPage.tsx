@@ -1,8 +1,9 @@
-import { Link, useParams } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 
 import { PageHeader, QueryBoundary } from '@/components'
 import { UserUpdateForm } from '@/components/users/UserUpdateForm'
-import { usePermissions } from '@/hooks'
+import { paths } from '@/app/paths'
+import { usePermissions, useNumericParam } from '@/hooks'
 import { useUserQuery } from '@/repositories'
 
 /**
@@ -11,10 +12,9 @@ import { useUserQuery } from '@/repositories'
  * account lives at /profile instead).
  */
 export function UserDetailPage() {
-  const { userId } = useParams()
-  const id = Number(userId)
+  const { id, skip } = useNumericParam('userId')
 
-  const { data: user, error, isLoading } = useUserQuery(id, { skip: Number.isNaN(id) })
+  const { data: user, error, isLoading } = useUserQuery(id, { skip })
   const { users: policy } = usePermissions()
 
   const canUpdate = policy.canUpdate(id)
@@ -26,18 +26,18 @@ export function UserDetailPage() {
         <>
           <PageHeader
             breadcrumbs={[
-              { label: 'Users', to: '/users' },
+              { label: 'Users', to: paths.users },
               { label: `${user.first_name} ${user.last_name}` },
             ]}
             title={`${user.first_name} ${user.last_name}`}
             subtitle={user.email}
             actions={
               <>
-                <Link className="btn btn-sm btn-outline-secondary" to="/users">
+                <Link className="btn btn-sm btn-outline-secondary" to={paths.users}>
                   Back
                 </Link>
                 {canAssignRoles && (
-                  <Link className="btn btn-sm btn-outline-primary" to={`/users/${id}/roles`}>
+                  <Link className="btn btn-sm btn-outline-primary" to={paths.userRoles(id)}>
                     Manage roles
                   </Link>
                 )}
@@ -55,7 +55,7 @@ export function UserDetailPage() {
                   <ul className="list-unstyled mb-0">
                     {user.albums.map((album) => (
                       <li key={album.id} className="py-1 border-bottom">
-                        <Link to={`/albums/${album.id}`}>{album.title}</Link>
+                        <Link to={paths.album(album.id)}>{album.title}</Link>
                         {album.is_deleted && (
                           <span className="badge text-bg-warning ms-2">Flagged</span>
                         )}

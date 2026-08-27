@@ -49,8 +49,9 @@ export function renderWithProviders(
   const wrapper = ({ children }: { children: ReactNode }) => (
     <Provider store={store}>
       <MemoryRouter initialEntries={[route]}>
-        {/* Every screen sits inside AppLayout in the real app, which is what
-            renders the toasts a failed mutation reports. */}
+        {/* `App` mounts this outside the routes, so a toast raised on the way
+            to another screen survives the navigation. Mirrored here for the
+            same reason: a page test renders one screen, not the shell. */}
         <ToastStack />
         {path === undefined ? (
           children

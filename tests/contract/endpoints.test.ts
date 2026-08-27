@@ -53,6 +53,20 @@ function declaredCalls(): { file: string; call: string }[] {
   })
 }
 
+/**
+ * Operations that exist for an operator, not for a client.
+ *
+ * `/metrics` is a Prometheus scrape target and `/docs` is the documentation
+ * site — infrastructure that happens to live on the same host. A browser client
+ * calling either would be doing something odd, so "unused" is the correct state
+ * for them rather than a gap.
+ *
+ * This is the one escape hatch in an otherwise exhaustive check, so it stays
+ * short and every entry has to be justifiable on those grounds. An operation a
+ * client *could* sensibly call belongs in a repository, not here.
+ */
+const NOT_CALLED = new Set(['GET /metrics', 'GET /docs', 'GET /docs/openapi.yaml'])
+
 /** Every operation the spec describes, minus the PATCH aliases of a PUT. */
 function specCalls(): string[] {
   return Object.entries(spec.paths).flatMap(([path, operations]) =>
@@ -73,8 +87,15 @@ describe('Every call the client makes is described by the spec', () => {
   it('leaves no operation unused, which is what the README claims', () => {
     // PATCH is excluded deliberately: on this API it is an alias of PUT.
     const used = new Set(declaredCalls().map(({ call }) => call))
-    const unused = specCalls().filter((call) => !used.has(call))
+    const unused = specCalls().filter((call) => !used.has(call) && !NOT_CALLED.has(call))
 
     expect(unused).toEqual([])
+  })
+
+  it('keeps the operator-only list honest', () => {
+    // A skip for an operation the API has since removed would sit here
+    // unnoticed, quietly widening the exemption.
+    const documented = new Set(specCalls())
+    expect([...NOT_CALLED].filter((call) => !documented.has(call))).toEqual([])
   })
 })

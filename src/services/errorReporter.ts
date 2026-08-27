@@ -1,3 +1,4 @@
+import { isApiError } from '@/api'
 import type { ErrorContext, ErrorReporter, Metric } from '@/contracts'
 
 /**
@@ -10,7 +11,13 @@ import type { ErrorContext, ErrorReporter, Metric } from '@/contracts'
  */
 export class ConsoleErrorReporter implements ErrorReporter {
   reportError(error: unknown, context?: ErrorContext): void {
-    console.error(`[error] ${context?.source ?? 'unknown'}`, error)
+    // The API files every request under an id and returns it. Quoting it here
+    // is what turns "it failed for a user once" into a line the server log can
+    // be searched for.
+    const requestId = isApiError(error) ? error.requestId : undefined
+    const tag = requestId === undefined ? '' : ` request ${requestId}`
+
+    console.error(`[error] ${context?.source ?? 'unknown'}${tag}`, error)
   }
 
   reportMetric(metric: Metric): void {

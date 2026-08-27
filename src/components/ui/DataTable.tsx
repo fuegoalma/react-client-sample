@@ -101,33 +101,27 @@ export function DataTable<T>({
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => (
-              <tr
-                key={rowKey(row)}
-                // `focus` as well as hover, so reaching the row by keyboard
-                // gets the same head start as reaching it by mouse.
-                onPointerEnter={
-                  onRowFocus === undefined
-                    ? undefined
-                    : () => {
-                        onRowFocus(row)
-                      }
-                }
-                onFocus={
-                  onRowFocus === undefined
-                    ? undefined
-                    : () => {
-                        onRowFocus(row)
-                      }
-                }
-              >
-                {columns.map((column) => (
-                  <td key={column.key} className={column.className}>
-                    {column.render(row)}
-                  </td>
-                ))}
-              </tr>
-            ))}
+            {rows.map((row) => {
+              // `focus` as well as hover, so reaching the row by keyboard gets
+              // the same head start as reaching it by mouse — one handler, so
+              // the two cannot be wired to different things.
+              const warm =
+                onRowFocus === undefined
+                  ? undefined
+                  : () => {
+                      onRowFocus(row)
+                    }
+
+              return (
+                <tr key={rowKey(row)} onPointerEnter={warm} onFocus={warm}>
+                  {columns.map((column) => (
+                    <td key={column.key} className={column.className}>
+                      {column.render(row)}
+                    </td>
+                  ))}
+                </tr>
+              )
+            })}
           </tbody>
         </table>
       </div>

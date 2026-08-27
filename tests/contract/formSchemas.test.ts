@@ -8,13 +8,18 @@ import type { ZodType } from 'zod'
 import {
   albumSchema,
   ALLOWED_IMAGE_EXTENSIONS,
+  changePasswordSchema,
+  forgotPasswordSchema,
   loginSchema,
+  MAX_UPLOAD_BYTES,
   photoUpdateSchema,
   photoUploadSchema,
   registerSchema,
+  resetPasswordSchema,
   roleCreateSchema,
   userCreateSchema,
   userUpdateSchema,
+  verifyEmailSchema,
 } from '@/forms'
 
 interface Property {
@@ -76,6 +81,27 @@ const FORMS: Readonly<Record<string, FormUnderTest>> = {
     form: registerSchema,
     body: spec.components.schemas['RegisterRequest'],
     clientOnly: ['password_confirm'],
+  },
+  'forgot password': {
+    form: forgotPasswordSchema,
+    body: spec.components.schemas['ForgotPasswordRequest'],
+  },
+  'reset password': {
+    form: resetPasswordSchema,
+    body: spec.components.schemas['ResetPasswordRequest'],
+    clientOnly: ['password_confirm'],
+  },
+  'verify email': {
+    form: verifyEmailSchema,
+    body: spec.components.schemas['VerifyEmailRequest'],
+  },
+  'change password': {
+    form: changePasswordSchema,
+    body: spec.components.schemas['ChangePasswordRequest'],
+    clientOnly: ['password_confirm'],
+    // The current password is checked against what is stored, not proposed, so
+    // the form does not hold it to the length rules a new one must meet.
+    limitsElsewhere: ['current_password'],
   },
   'user create': {
     form: userCreateSchema,
@@ -184,5 +210,14 @@ describe('The upload form accepts the extensions the endpoint documents', () => 
     expect(documented?.[1]?.split(',').map((extension) => extension.trim())).toEqual([
       ...ALLOWED_IMAGE_EXTENSIONS,
     ])
+  })
+
+  it('refuses a file at the size the endpoint states, and no other', () => {
+    // Stated in prose too. Left to a literal in `rules.ts`, the limit would
+    // simply stop matching the day the API raised it, and the only symptom
+    // would be uploads the server rejects after the wait.
+    const documented = /at most (\d+) bytes/.exec(PHOTO_UPLOAD?.description ?? '')
+
+    expect(Number(documented?.[1])).toBe(MAX_UPLOAD_BYTES)
   })
 })

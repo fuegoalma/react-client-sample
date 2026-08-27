@@ -19,53 +19,106 @@ describe('toApiError', () => {
   it('unwraps a validation error into per-field messages', () => {
     const error = toApiError(
       envelope(422, {
-        message: 'An error occurred during execution',
+        message: 'The request could not be processed — see `error` for the fields at fault.',
+        error_code: 'validation_failed',
         error: { email: ['Email has already been taken.'] },
       }),
     )
 
     expect(error.code).toBe(422)
+    expect(error.errorCode).toBe('validation_failed')
     expect(error.fieldErrors).toEqual({ email: ['Email has already been taken.'] })
   })
 
   it('keeps a meaningful server message, such as a 409 conflict', () => {
     const error = toApiError(
-      envelope(409, { message: 'This would leave no user able to manage roles.' }),
+      envelope(409, {
+        message: 'This would leave no user able to manage roles.',
+        error_code: 'role.last_manager',
+      }),
     )
 
     expect(error.message).toBe('This would leave no user able to manage roles.')
   })
 
-  it('replaces Yii’s generic message with something a user can act on', () => {
-    const error = toApiError(envelope(403, { message: 'An error occurred during execution' }))
-    expect(error.message).toBe('You do not have permission to perform this action.')
+  it('carries the reason a program should branch on, not the prose', () => {
+    // Two 401s that mean entirely different things: one is a password to retype,
+    // the other a session that has been revoked and cannot be refreshed.
+    expect(
+      toApiError(
+        envelope(401, { message: 'Invalid credentials.', error_code: 'auth.invalid_credentials' }),
+      ).errorCode,
+    ).toBe('auth.invalid_credentials')
+    expect(
+      toApiError(envelope(401, { message: 'Token reused.', error_code: 'refresh_token.reused' }))
+        .errorCode,
+    ).toBe('refresh_token.reused')
+  })
+
+  it('names the failure after its status when the body gives no code', () => {
+    // A proxy in front of the API answers without the envelope, so a caller
+    // still gets something to branch on rather than an absent field.
+    expect(toApiError(envelope(404, {})).errorCode).toBe('not_found')
+    expect(toApiError(envelope(413, {})).errorCode).toBe('payload_too_large')
+    expect(toApiError({ status: 418, data: {} }).errorCode).toBe('error')
   })
 
   it('falls back on a status message when the body carries none', () => {
     expect(toApiError(envelope(404, {})).message).toBe('The requested resource was not found.')
   })
 
-  it('reads Retry-After off a rate-limited response', () => {
-    const error = toApiError(envelope(429, {}), metaWith({ 'Retry-After': '30' }))
-    expect(error.retryAfter).toBe(30)
+  it('explains an upload the endpoint refused for its size', () => {
+    const error = toApiError(envelope(413, { error_code: 'payload.too_large' }))
+
+    expect(error.errorCode).toBe('payload.too_large')
+    expect(error.message).toBe('That file is too large to upload.')
   })
 
-  it('leaves retryAfter unset when the header is absent or unparseable', () => {
+  it('reads Retry-After off a rate-limited response and says how long to wait', () => {
+    const error = toApiError(envelope(429, {}), metaWith({ 'Retry-After': '30' }))
+
+    expect(error.retryAfter).toBe(30)
+    expect(error.message).toBe('Too many attempts. Please wait 30 seconds and try again.')
+  })
+
+  it('counts a one-second wait in the singular', () => {
+    expect(toApiError(envelope(429, {}), metaWith({ 'Retry-After': '1' })).message).toBe(
+      'Too many attempts. Please wait 1 second and try again.',
+    )
+  })
+
+  it('still explains a rate limit whose header it cannot read', () => {
+    // Nothing exposes the header on a same-origin proxy, and a value that is
+    // not a number is no better than none.
     expect(toApiError(envelope(429, {})).retryAfter).toBeUndefined()
+    expect(toApiError(envelope(429, {})).message).toBe(
+      'Too many attempts. Please wait before trying again.',
+    )
     expect(
       toApiError(envelope(429, {}), metaWith({ 'Retry-After': 'soon' })).retryAfter,
     ).toBeUndefined()
   })
 
+  it('carries the request id the API filed the call under', () => {
+    const error = toApiError(envelope(500, {}), metaWith({ 'X-Request-Id': 'req-abc' }))
+    expect(error.requestId).toBe('req-abc')
+  })
+
+  it('leaves the request id unset when the header is not exposed', () => {
+    expect(toApiError(envelope(500, {})).requestId).toBeUndefined()
+  })
+
   it('reports a network failure as code 0', () => {
     const error = toApiError({ status: 'FETCH_ERROR', error: 'Failed to fetch' })
     expect(error.code).toBe(0)
+    expect(error.errorCode).toBe('network_error')
     expect(error.message).toContain('could not be reached')
   })
 
   it('reports a timeout distinctly', () => {
     const error = toApiError({ status: 'TIMEOUT_ERROR', error: 'timed out' })
     expect(error.code).toBe(0)
+    expect(error.errorCode).toBe('timeout')
     expect(error.message).toContain('timed out')
   })
 
@@ -77,26 +130,35 @@ describe('toApiError', () => {
       error: 'Unexpected token',
     })
     expect(error.code).toBe(500)
+    expect(error.errorCode).toBe('server_error')
   })
 
   it('never invents field errors from a debug trace', () => {
-    // With YII_DEBUG on, `error` holds a stack trace, not validation messages.
+    // Debug detail has its own `debug` key now, and `error` is empty for
+    // anything that is not a validation failure — so there is nothing to mine.
     const error = toApiError(
-      envelope(500, { message: 'Boom', error: { file: 'x.php', line: 12, trace: [] } }),
+      envelope(500, {
+        message: 'Boom',
+        error_code: 'server_error',
+        error: {},
+        debug: { file: 'x.php', line: 12, trace: [] },
+      }),
     )
-    expect(error.fieldErrors).toEqual({ file: ['x.php'] })
+    expect(error.fieldErrors).toEqual({})
   })
 })
 
 describe('extractFieldErrors', () => {
-  it('accepts a bare string as a single message', () => {
-    expect(extractFieldErrors({ title: 'Title cannot be blank.' })).toEqual({
+  it('keeps the message lists the API sends', () => {
+    expect(extractFieldErrors({ title: ['Title cannot be blank.'] })).toEqual({
       title: ['Title cannot be blank.'],
     })
   })
 
   it('drops values that are not messages', () => {
-    expect(extractFieldErrors({ line: 12, trace: [{ file: 'x' }] })).toEqual({})
+    // An empty list carries nothing to show, and the API never sends a bare
+    // value under a field — `getErrors()` produces a list per attribute.
+    expect(extractFieldErrors({ line: 12, trace: [{ file: 'x' }], sort: [] })).toEqual({})
   })
 
   it('returns nothing when there is no error object', () => {
@@ -106,24 +168,36 @@ describe('extractFieldErrors', () => {
 
 describe('isApiError and errorMessage', () => {
   it('recognises a normalised error', () => {
-    expect(isApiError({ code: 404, message: 'Nope', fieldErrors: {} })).toBe(true)
+    expect(
+      isApiError({ code: 404, errorCode: 'not_found', message: 'Nope', fieldErrors: {} }),
+    ).toBe(true)
   })
 
   it('rejects anything else', () => {
     expect(isApiError(null)).toBe(false)
     expect(isApiError('boom')).toBe(false)
     expect(isApiError({ code: 404 })).toBe(false)
+    // Missing the field every caller branches on is not our shape.
+    expect(isApiError({ code: 404, message: 'Nope', fieldErrors: {} })).toBe(false)
   })
 
   it('falls back when handed something that is not an API error', () => {
     expect(errorMessage(new Error('x'), 'Could not load.')).toBe('Could not load.')
-    expect(errorMessage({ code: 1, message: 'Real', fieldErrors: {} })).toBe('Real')
+    expect(errorMessage({ code: 1, errorCode: 'error', message: 'Real', fieldErrors: {} })).toBe(
+      'Real',
+    )
   })
 })
 
 describe('Statuses and bodies the API is not documented to send', () => {
   it('still explains a status it has no wording for', () => {
     expect(toApiError({ status: 418, data: {} }).message).toBe('An unexpected error occurred.')
+  })
+
+  it('falls back to status wording when the envelope carries no message', () => {
+    expect(toApiError(envelope(403, {})).message).toBe(
+      'You do not have permission to perform this action.',
+    )
   })
 
   it('reads an error body that was not wrapped in the envelope', () => {

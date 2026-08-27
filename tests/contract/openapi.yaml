@@ -18,6 +18,21 @@ info:
     The public endpoints are the auth endpoints (`/auth/*`) and `/health`.
     Obtain a token pair from `POST /auth/login` or `POST /auth/register`.
 
+    ## Response headers
+
+    Every response carries `X-Request-Id`, the id this request is filed under in
+    the server's logs — quote it in a bug report. Send your own and it is echoed
+    back after sanitising.
+
+    Every `200` from a `GET` carries an `ETag` and
+    `Cache-Control: private, no-cache`: keep the body, and send it back as
+    `If-None-Match` on the next read. An unchanged resource answers `304` with no
+    body. A `429` carries `Retry-After`, in seconds.
+
+    Calling from a browser on another origin, these are the response headers you
+    may read and the only ones (`Access-Control-Expose-Headers`): `ETag`,
+    `Retry-After`, `X-Request-Id`.
+
     ## Authorization (RBAC)
     Access is flat: a role is a named set of permissions, a user may hold
     several, and effective permissions are their union. A freshly registered
@@ -25,7 +40,8 @@ info:
     owns. Endpoint descriptions state the permission each action requires; a
     caller lacking it gets a `403`.
   license:
-    name: BSD-3-Clause
+    name: MIT
+    url: https://opensource.org/licenses/MIT
 
 servers:
   - url: http://localhost:8084
@@ -36,6 +52,8 @@ tags:
     description: Login, registration, token refresh and logout (public, rate-limited per IP).
   - name: Health
     description: Liveness probe for load balancers / uptime monitoring (public).
+  - name: Docs
+    description: This interactive documentation itself (public, not wrapped in the response envelope).
   - name: Users
     description: User accounts, the current-user endpoints, and role assignment.
   - name: Albums
@@ -55,6 +73,8 @@ paths:
   /auth/login:
     post:
       tags: [Auth]
+      x-permission: []
+      operationId: authLogin
       summary: Log in with email and password
       description: Returns a fresh access + refresh token pair and starts a new token family (session). Wrong credentials → 401.
       security: []
@@ -81,6 +101,8 @@ paths:
   /auth/register:
     post:
       tags: [Auth]
+      x-permission: []
+      operationId: authRegister
       summary: Self-register and log in
       description: Creates an account (assigned **no** role) and logs it straight in, returning a token pair. Duplicate email or a missing field → 422.
       security: []
@@ -105,6 +127,8 @@ paths:
   /auth/refresh:
     post:
       tags: [Auth]
+      x-permission: []
+      operationId: authRefresh
       summary: Exchange a refresh token for a fresh pair
       description: |
         Refresh tokens are single-use and **rotate**: this revokes the presented
@@ -135,6 +159,8 @@ paths:
   /auth/logout:
     post:
       tags: [Auth]
+      x-permission: []
+      operationId: authLogout
       summary: Log out this device
       description: Revokes the presented token's **family** (one session/device). Best-effort and idempotent — an unknown token still returns 204.
       security: []
@@ -155,8 +181,17 @@ paths:
   /auth/logout-all:
     post:
       tags: [Auth]
+      x-permission: []
+      operationId: authLogoutAll
       summary: Log out all devices
-      description: Revokes **every** family of the token's owner. Idempotent → 204.
+      description: |
+        Revokes **every** family of the token's owner **and withdraws the access
+        tokens already issued to them**, by bumping the account's token version —
+        so it takes effect immediately rather than within `JWT_TTL`. Idempotent → 204.
+
+        `POST /auth/logout` deliberately does not do this: it ends one device,
+        and taking the other devices' access tokens with it would make the two
+        endpoints the same thing.
       security: []
       requestBody:
         required: true
@@ -172,10 +207,108 @@ paths:
         '429':
           $ref: '#/components/responses/TooManyRequests'
 
+  /auth/forgot-password:
+    post:
+      tags: [Auth]
+      x-permission: []
+      operationId: authForgotPassword
+      summary: Request a password-reset token
+      description: |
+        Emails a single-use token to the address, if it belongs to an account.
+
+        **Always answers 204**, registered or not. Answering differently would
+        make this an account-enumeration oracle, which `POST /auth/login` takes
+        deliberate trouble to avoid being.
+
+        A new request invalidates any token issued earlier, so only the newest
+        one works.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ForgotPasswordRequest'
+      responses:
+        '204':
+          description: Request accepted (whether or not the address is registered).
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+
+  /auth/reset-password:
+    post:
+      tags: [Auth]
+      x-permission: []
+      operationId: authResetPassword
+      summary: Set a new password with a reset token
+      description: |
+        Spends the token from `POST /auth/forgot-password` and stores the new
+        password.
+
+        **Every session of the account ends**: refresh families are revoked and
+        the access tokens already issued are withdrawn. No token pair is returned
+        — log in with the new password.
+
+        Unknown or already-spent token → 401 `password_reset.invalid`; expired →
+        401 `password_reset.expired`.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResetPasswordRequest'
+      responses:
+        '204':
+          description: Password changed and every session ended.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+
+  /auth/verify-email:
+    post:
+      tags: [Auth]
+      x-permission: []
+      operationId: authVerifyEmail
+      summary: Confirm an email address
+      description: |
+        Spends the token sent on registration and marks the address verified.
+
+        **Public**: the token is the proof, and requiring a session as well
+        would break opening the link in a different browser.
+
+        Verification is **recorded, not enforced** — an unverified account is
+        fully usable, and `email_verified` on the user shape is there so a
+        client can prompt. Unknown or spent token → 401
+        `email_verification.invalid`; expired → 401 `email_verification.expired`.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyEmailRequest'
+      responses:
+        '204':
+          description: Address confirmed.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+
   # ---------------------------------------------------------------- Health
   /health:
     get:
       tags: [Health]
+      x-permission: []
+      operationId: healthIndex
       summary: Health check
       description: Public, unauthenticated, unthrottled. Runs `SELECT 1` against the database.
       security: []
@@ -193,10 +326,80 @@ paths:
               schema:
                 $ref: '#/components/schemas/HealthEnvelope'
 
+  /metrics:
+    get:
+      tags: [Health]
+      x-permission: []
+      operationId: metricsIndex
+      summary: Prometheus scrape endpoint
+      description: |
+        Operational gauges in the Prometheus text exposition format. **Not** the
+        JSON envelope every other endpoint uses — Prometheus parses a specific
+        line format and would reject anything else.
+
+        Public and unauthenticated, like `/health`: a scraper is infrastructure
+        and has no account. That is acceptable only because nothing here is
+        per-user; a metric that leaked something would have to move behind the
+        network boundary.
+
+        Values are read from the database at scrape time rather than accumulated
+        in the process: PHP shares no memory between requests, so a counter would
+        report one container's slice.
+      security: []
+      responses:
+        '200':
+          description: Metrics in text exposition format.
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: |
+                  # HELP queue_jobs_pending Jobs waiting to be claimed by a worker.
+                  # TYPE queue_jobs_pending gauge
+                  queue_jobs_pending 0
+
+  # ---------------------------------------------------------------- Docs
+  /docs:
+    get:
+      tags: [Docs]
+      x-permission: []
+      operationId: docsIndex
+      summary: Swagger UI
+      description: |
+        Renders this interactive documentation. Served by `DocsController`, which
+        extends plain `yii\web\Controller` and sets `Response::FORMAT_RAW`, so it
+        deliberately bypasses both the JSON envelope and JWT auth. The page loads
+        `swagger-ui-dist` from a pinned CDN, so it needs internet access;
+        `/docs/openapi.yaml` itself is always served locally.
+      security: []
+      responses:
+        '200':
+          description: The Swagger UI HTML page.
+          content:
+            text/html:
+              schema: { type: string }
+
+  /docs/openapi.yaml:
+    get:
+      tags: [Docs]
+      x-permission: []
+      operationId: docsSpec
+      summary: Raw OpenAPI specification
+      description: Serves this file (`config/openapi.yaml`) verbatim. Not wrapped in the JSON envelope.
+      security: []
+      responses:
+        '200':
+          description: The OpenAPI 3.0 spec, YAML-encoded.
+          content:
+            application/yaml:
+              schema: { type: string }
+
   # ---------------------------------------------------------------- Current user
   /users/me:
     get:
       tags: [Users]
+      x-permission: []
+      operationId: usersMe
       summary: The authenticated user's profile
       description: Available to every authenticated user (never gated). Returns the profile, the user's albums and their role names.
       responses:
@@ -216,6 +419,8 @@ paths:
   /users/me/permissions:
     get:
       tags: [Users]
+      x-permission: []
+      operationId: usersMePermissions
       summary: The caller's roles and effective permissions
       description: For a client to build its UI from — role names plus the union of their role-granted permission names. Never gated.
       responses:
@@ -236,19 +441,20 @@ paths:
   /users:
     get:
       tags: [Users]
+      x-permission: [user.index.any]
+      operationId: usersIndex
       summary: List users
-      description: 'Requires `user.index.any` (moderator+). Supports `?expand=albums`.'
+      description: 'Requires `user.index.any` (moderator+).'
       parameters:
         - $ref: '#/components/parameters/page'
         - $ref: '#/components/parameters/perPage'
         - name: sort
           in: query
-          description: 'Comma-separated, `-` prefix = descending. Allowed: `id`, `first_name`, `last_name`, `email`, `created_at`, `updated_at`.'
-          schema: { type: string, example: -created_at,last_name }
+          description: 'Comma-separated, `-` prefix = descending. Allowed: `id`, `first_name`, `last_name`, `email`, `created_at`, `updated_at`. Defaults to `id` ascending when omitted or when it resolves to no whitelisted field.'
+          schema: { type: string, example: '-created_at,last_name' }
         - { name: first_name, in: query, schema: { type: string }, description: Partial match. }
         - { name: last_name, in: query, schema: { type: string }, description: Partial match. }
         - { name: email, in: query, schema: { type: string }, description: Partial match. }
-        - $ref: '#/components/parameters/expand'
       responses:
         '200':
           description: A page of users.
@@ -270,6 +476,8 @@ paths:
         '422': { $ref: '#/components/responses/ValidationError' }
     post:
       tags: [Users]
+      x-permission: [user.create]
+      operationId: usersCreate
       summary: Create a user
       description: Requires `user.create` (admin+). The account is created with **no** role. Password is hashed server-side.
       requestBody:
@@ -295,6 +503,8 @@ paths:
       - $ref: '#/components/parameters/idPath'
     get:
       tags: [Users]
+      x-permission: [user.view.any]
+      operationId: usersView
       summary: Get a user
       description: Requires `user.view.any` (moderator+) — ownership does **not** grant it. Always includes the user's albums.
       responses:
@@ -311,6 +521,9 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
     put:
       tags: [Users]
+      x-permission: [user.update.any]
+      operationId: usersUpdate
+      x-permission-ownership: true
       summary: Update a user (partial)
       description: Requires ownership (own profile) or `user.update.any` (admin+). All fields optional. An admin cannot take over a role-manager's account (409).
       requestBody:
@@ -334,6 +547,9 @@ paths:
         '422': { $ref: '#/components/responses/ValidationError' }
     patch:
       tags: [Users]
+      x-permission: [user.update.any]
+      operationId: usersUpdatePatch
+      x-permission-ownership: true
       summary: Update a user (partial, alias of PUT)
       requestBody:
         required: true
@@ -356,6 +572,8 @@ paths:
         '422': { $ref: '#/components/responses/ValidationError' }
     delete:
       tags: [Users]
+      x-permission: [user.delete.any]
+      operationId: usersDelete
       summary: Delete a user
       description: Requires `user.delete.any` (admin+). Blocked by the last-role-manager invariant (409).
       responses:
@@ -366,11 +584,60 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
 
+  /users/me/password:
+    put:
+      tags: [Users]
+      x-permission: []
+      operationId: usersChangePassword
+      summary: Change your own password
+      description: |
+        Changes the **caller's** password; there is no id in the route, so this
+        cannot be used against another account.
+
+        The current password is required even though the caller is
+        authenticated: a bearer token left on a shared machine should not be
+        enough to take the account over for good. Wrong current password → 401
+        `auth.invalid_credentials`.
+
+        **Every session ends**, including the caller's own — log in again with
+        the new password.
+      responses:
+        '204':
+          description: Password changed and every session ended.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangePasswordRequest'
+
+  /users/me/resend-verification:
+    post:
+      tags: [Users]
+      x-permission: []
+      operationId: usersResendVerification
+      summary: Re-send your verification message
+      description: |
+        Issues a fresh token for the **caller's own** address and retires any
+        earlier one. Idempotent, and a no-op once the address is already
+        verified — so it cannot be used to spray mail at a confirmed address.
+      responses:
+        '204':
+          description: Message queued (or already verified, in which case nothing was sent).
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
   /users/{id}/roles:
     parameters:
       - $ref: '#/components/parameters/idPath'
     get:
       tags: [Users]
+      x-permission: [role.assign]
+      operationId: usersRoles
       summary: List a user's roles
       description: Requires `role.assign` (admin+).
       responses:
@@ -390,6 +657,8 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
     put:
       tags: [Users]
+      x-permission: [role.assign]
+      operationId: usersSetRoles
       summary: Replace a user's role set
       description: |
         Requires `role.assign` (admin+). Full replacement — an empty array revokes
@@ -422,6 +691,8 @@ paths:
   /albums/my:
     get:
       tags: [Albums]
+      x-permission: []
+      operationId: albumsMy
       summary: The caller's own albums
       description: Available to every authenticated user. Soft-deleted albums are excluded.
       parameters:
@@ -429,7 +700,6 @@ paths:
         - $ref: '#/components/parameters/perPage'
         - $ref: '#/components/parameters/albumSort'
         - { name: title, in: query, schema: { type: string }, description: Partial match. }
-        - $ref: '#/components/parameters/expand'
       responses:
         '200':
           description: A page of the caller's albums.
@@ -442,8 +712,10 @@ paths:
   /albums:
     get:
       tags: [Albums]
+      x-permission: [album.index.any]
+      operationId: albumsIndex
       summary: List all albums (review view)
-      description: 'Requires `album.index.any` (moderator+). Soft-deleted albums are hidden unless requested via `?is_deleted=1` (the review queue). Supports `?expand=photos`.'
+      description: 'Requires `album.index.any` (moderator+). Soft-deleted albums are hidden unless requested via `?is_deleted=1` (the review queue).'
       parameters:
         - $ref: '#/components/parameters/page'
         - $ref: '#/components/parameters/perPage'
@@ -454,7 +726,6 @@ paths:
           in: query
           description: 'Exact match. Omit to see only live albums; `1` surfaces the soft-deleted review queue.'
           schema: { type: boolean }
-        - $ref: '#/components/parameters/expand'
       responses:
         '200':
           description: A page of albums.
@@ -466,6 +737,8 @@ paths:
         '422': { $ref: '#/components/responses/ValidationError' }
     post:
       tags: [Albums]
+      x-permission: []
+      operationId: albumsCreate
       summary: Create an album
       description: A base ability of every authenticated user. The owner is forced to the caller — `user_id` cannot be set from the body.
       requestBody:
@@ -490,6 +763,9 @@ paths:
       - $ref: '#/components/parameters/idPath'
     get:
       tags: [Albums]
+      x-permission: [album.view.any]
+      operationId: albumsView
+      x-permission-ownership: true
       summary: Get an album with its photos and owner
       description: Requires ownership or `album.view.any` (moderator+). Returns a richer shape including the owner's name and the album's photos.
       responses:
@@ -506,6 +782,9 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
     put:
       tags: [Albums]
+      x-permission: [album.update.any]
+      operationId: albumsUpdate
+      x-permission-ownership: true
       summary: Update an album (partial)
       description: Requires ownership or `album.update.any` (moderator+). Only the title is editable.
       requestBody:
@@ -528,6 +807,9 @@ paths:
         '422': { $ref: '#/components/responses/ValidationError' }
     patch:
       tags: [Albums]
+      x-permission: [album.update.any]
+      operationId: albumsUpdatePatch
+      x-permission-ownership: true
       summary: Update an album (partial, alias of PUT)
       requestBody:
         required: true
@@ -549,6 +831,9 @@ paths:
         '422': { $ref: '#/components/responses/ValidationError' }
     delete:
       tags: [Albums]
+      x-permission: [album.delete.any, album.soft-delete.any]
+      operationId: albumsDelete
+      x-permission-ownership: true
       summary: Delete an album (permanent or soft)
       description: |
         One route, outcome decided by permission:
@@ -575,6 +860,8 @@ paths:
       - $ref: '#/components/parameters/idPath'
     post:
       tags: [Albums]
+      x-permission: [album.restore]
+      operationId: albumsRestore
       summary: Restore a soft-deleted album
       description: Requires `album.restore` (admin+). Lifts the pseudo-deletion after review.
       responses:
@@ -599,6 +886,9 @@ paths:
         schema: { type: integer, minimum: 1 }
     get:
       tags: [Photos]
+      x-permission: [photo.view.any]
+      operationId: photosIndex
+      x-permission-ownership: true
       summary: List an album's photos
       description: Requires ownership of the album or `photo.view.any` (moderator+). A missing album → 404.
       parameters:
@@ -606,7 +896,7 @@ paths:
         - $ref: '#/components/parameters/perPage'
         - name: sort
           in: query
-          description: 'Comma-separated, `-` prefix = descending. Allowed: `id`, `title`, `created_at`.'
+          description: 'Comma-separated, `-` prefix = descending. Allowed: `id`, `title`, `created_at`. Defaults to `id` ascending when omitted or when it resolves to no whitelisted field.'
           schema: { type: string }
         - { name: title, in: query, schema: { type: string }, description: Partial match. }
       responses:
@@ -631,6 +921,9 @@ paths:
         '422': { $ref: '#/components/responses/ValidationError' }
     post:
       tags: [Photos]
+      x-permission: [photo.create.any]
+      operationId: photosCreate
+      x-permission-ownership: true
       summary: Upload a photo into an album
       description: |
         Requires ownership of the album or `photo.create.any` (moderator+).
@@ -638,6 +931,10 @@ paths:
         `jpg, jpeg, png, webp, gif, avif`. Every upload is converted to WebP
         quality 80, scaled to fit 500×500 preserving aspect ratio (never
         upscaled). A non-image passing the extension check → 422.
+
+        The file may be at most 10485760 bytes. A larger one is refused with
+        `413` and `error_code: payload.too_large` — not a `422`, because the
+        body is the problem and resending it unchanged cannot succeed.
       requestBody:
         required: true
         content:
@@ -665,6 +962,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
         '422': { $ref: '#/components/responses/ValidationError' }
 
   /photos/{id}:
@@ -672,6 +970,9 @@ paths:
       - $ref: '#/components/parameters/idPath'
     get:
       tags: [Photos]
+      x-permission: [photo.view.any]
+      operationId: photosView
+      x-permission-ownership: true
       summary: Get a photo
       description: Requires ownership (via the album) or `photo.view.any` (moderator+).
       responses:
@@ -688,6 +989,9 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
     put:
       tags: [Photos]
+      x-permission: [photo.update.any]
+      operationId: photosUpdate
+      x-permission-ownership: true
       summary: Update a photo (title only)
       description: Requires ownership or `photo.update.any` (moderator+). The album and the stored file are immutable — only the title can change.
       requestBody:
@@ -710,6 +1014,9 @@ paths:
         '422': { $ref: '#/components/responses/ValidationError' }
     patch:
       tags: [Photos]
+      x-permission: [photo.update.any]
+      operationId: photosUpdatePatch
+      x-permission-ownership: true
       summary: Update a photo (title only, alias of PUT)
       requestBody:
         required: true
@@ -731,6 +1038,9 @@ paths:
         '422': { $ref: '#/components/responses/ValidationError' }
     delete:
       tags: [Photos]
+      x-permission: [photo.delete.any]
+      operationId: photosDelete
+      x-permission-ownership: true
       summary: Delete a photo
       description: Requires ownership or `photo.delete.any` (moderator+). Removes the record and, for uploaded photos, the physical file.
       responses:
@@ -744,14 +1054,18 @@ paths:
   /roles:
     get:
       tags: [Roles]
+      x-permission: [role.index]
+      operationId: rolesIndex
       summary: List roles
-      description: Requires `role.index` (admin+). Returns name + description (no permission sets).
+      description: |
+        Requires `role.index` (admin+). Returns name + description; the permission
+        sets stay behind `role.view` (super admin) on `GET /roles/{id}`.
       parameters:
         - $ref: '#/components/parameters/page'
         - $ref: '#/components/parameters/perPage'
         - name: sort
           in: query
-          description: 'Comma-separated, `-` prefix = descending. Allowed: `id`, `name`.'
+          description: 'Comma-separated, `-` prefix = descending. Allowed: `id`, `name`. Defaults to `id` ascending when omitted or when it resolves to no whitelisted field.'
           schema: { type: string }
         - { name: name, in: query, schema: { type: string }, description: Partial match. }
       responses:
@@ -775,6 +1089,8 @@ paths:
         '422': { $ref: '#/components/responses/ValidationError' }
     post:
       tags: [Roles]
+      x-permission: [role.manage]
+      operationId: rolesCreate
       summary: Compose a custom role
       description: Requires `role.manage` (super-admin). Built from catalog permissions; an unknown permission name → 422, a duplicate role name → 422.
       requestBody:
@@ -800,6 +1116,8 @@ paths:
       - $ref: '#/components/parameters/idPath'
     get:
       tags: [Roles]
+      x-permission: [role.view]
+      operationId: rolesView
       summary: Get a role with its permissions
       description: Requires `role.view` (super-admin). Includes the role's permission set.
       responses:
@@ -816,6 +1134,8 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
     put:
       tags: [Roles]
+      x-permission: [role.manage]
+      operationId: rolesUpdate
       summary: Re-compose a role (partial)
       description: |
         Requires `role.manage` (super-admin). A system role can be re-composed but
@@ -841,6 +1161,8 @@ paths:
         '422': { $ref: '#/components/responses/ValidationError' }
     patch:
       tags: [Roles]
+      x-permission: [role.manage]
+      operationId: rolesUpdatePatch
       summary: Re-compose a role (partial, alias of PUT)
       requestBody:
         required: true
@@ -863,6 +1185,8 @@ paths:
         '422': { $ref: '#/components/responses/ValidationError' }
     delete:
       tags: [Roles]
+      x-permission: [role.manage]
+      operationId: rolesDelete
       summary: Delete a custom role
       description: Requires `role.manage` (super-admin). A system role cannot be deleted (409). Blocked by the last-role-manager invariant (409).
       responses:
@@ -877,6 +1201,8 @@ paths:
   /permissions:
     get:
       tags: [Permissions]
+      x-permission: [permission.index]
+      operationId: permissionsIndex
       summary: List the permission catalog
       description: Requires `permission.index` (super-admin). Read-only — permissions are managed by migrations.
       responses:
@@ -918,15 +1244,10 @@ components:
       in: query
       description: Items per page, 1–100 (default 20).
       schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
-    expand:
-      name: expand
-      in: query
-      description: 'Comma-separated related resources to embed (e.g. `albums` on users, `photos` on albums).'
-      schema: { type: string }
     albumSort:
       name: sort
       in: query
-      description: 'Comma-separated, `-` prefix = descending. Allowed: `id`, `user_id`, `title`, `created_at`, `updated_at`.'
+      description: 'Comma-separated, `-` prefix = descending. Allowed: `id`, `title`, `created_at`, `updated_at`. Defaults to `id` ascending when omitted or when it resolves to no whitelisted field.'
       schema: { type: string }
 
   responses:
@@ -955,6 +1276,13 @@ components:
       content:
         application/json:
           schema: { $ref: '#/components/schemas/ValidationErrorEnvelope' }
+    PayloadTooLarge:
+      description: >
+        The request body exceeds the server limit (`error_code: payload.too_large`).
+        Distinct from `422`: the body itself is at fault, so resending it unchanged cannot succeed.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
     TooManyRequests:
       description: Rate limit exceeded (see the `Retry-After` header).
       headers:
@@ -984,11 +1312,33 @@ components:
         data:
           type: object
           properties:
-            message: { type: string, example: An error occurred during execution }
+            message: { type: string, description: 'Human-readable. A message the endpoint chose (e.g. a 409 naming the invariant it refused) is returned verbatim; otherwise it is the default wording for the status.', example: The requested resource was not found. }
+            error_code:
+              type: string
+              description: |
+                Machine-readable and stable — branch on this rather than on `message`.
+                Defaults to the status: `bad_request`, `unauthorized`, `forbidden`,
+                `not_found`, `method_not_allowed`, `conflict`, `unsupported_media_type`,
+                `validation_failed`, `too_many_requests`, `server_error`,
+                `service_unavailable`. Endpoints that can refuse for more than one
+                reason narrow it further: `auth.invalid_credentials`,
+                `refresh_token.invalid`, `refresh_token.reused`,
+                `refresh_token.expired`, `role.system_immutable`,
+                `role.escalation_denied`, `role.last_manager`, `password_reset.invalid`, `password_reset.expired`, `email_verification.invalid`, `email_verification.expired`.
+              example: not_found
             error:
               type: object
-              description: 'Details; only populated for validation errors, or with a stack trace when `YII_DEBUG`.'
-              additionalProperties: true
+              description: 'Field name → list of validation messages. Empty for anything that is not a validation failure — debug detail never appears here.'
+              additionalProperties:
+                type: array
+                items: { type: string }
+            debug:
+              type: object
+              description: 'Present only when the server runs with `YII_DEBUG`. Never sent in production.'
+              properties:
+                file: { type: string }
+                line: { type: integer }
+                trace: { type: array, items: { type: string } }
     ValidationErrorEnvelope:
       type: object
       required: [success, data, code]
@@ -998,10 +1348,11 @@ components:
         data:
           type: object
           properties:
-            message: { type: string, example: An error occurred during execution }
+            message: { type: string, example: 'The request could not be processed — see `error` for the fields at fault.' }
+            error_code: { type: string, enum: [validation_failed], example: validation_failed }
             error:
               type: object
-              description: Field name → list of validation messages.
+              description: Field name → list of validation messages. Always populated for a 422.
               additionalProperties:
                 type: array
                 items: { type: string }
@@ -1014,7 +1365,7 @@ components:
         total: { type: integer, example: 45 }
         per_page: { type: integer, example: 20 }
         current_page: { type: integer, example: 1 }
-        last_page: { type: integer, example: 3 }
+        last_page: { type: integer, example: 3, description: '`0` when `total` is `0` (an empty result set). An out-of-range `page` is not clamped — it returns empty `items` while `total`/`last_page` still describe the full set.' }
         from: { type: integer, example: 1 }
         to: { type: integer, example: 20 }
 
@@ -1023,7 +1374,7 @@ components:
       type: object
       required: [email, password]
       properties:
-        email: { type: string, format: email, maxLength: 255, example: user@example.com }
+        email: { type: string, format: email, maxLength: 254, example: user@example.com }
         password: { type: string, maxLength: 72, example: secret123 }
     RegisterRequest:
       type: object
@@ -1031,7 +1382,7 @@ components:
       properties:
         first_name: { type: string, maxLength: 255, example: John }
         last_name: { type: string, maxLength: 255, example: Doe }
-        email: { type: string, format: email, maxLength: 255, example: user@example.com }
+        email: { type: string, format: email, maxLength: 254, example: user@example.com }
         password: { type: string, minLength: 6, maxLength: 72, example: secret123 }
     RefreshTokenRequest:
       type: object
@@ -1066,6 +1417,28 @@ components:
                     database: { type: string, enum: [ok, error], example: ok }
 
     # -- Users -------------------------------------------------------
+    ForgotPasswordRequest:
+      type: object
+      required: [email]
+      properties:
+        email: { type: string, format: email, maxLength: 254, example: john@example.com }
+    ResetPasswordRequest:
+      type: object
+      required: [token, password]
+      properties:
+        token: { type: string, maxLength: 64, example: 8f3ac91b7d2e4a6c }
+        password: { type: string, minLength: 6, maxLength: 72, example: brand-new-secret }
+    VerifyEmailRequest:
+      type: object
+      required: [token]
+      properties:
+        token: { type: string, maxLength: 64, example: 8f3ac91b7d2e4a6c }
+    ChangePasswordRequest:
+      type: object
+      required: [current_password, password]
+      properties:
+        current_password: { type: string, minLength: 6, maxLength: 72, example: secret123 }
+        password: { type: string, minLength: 6, maxLength: 72, example: brand-new-secret }
     User:
       type: object
       properties:
@@ -1073,6 +1446,9 @@ components:
         first_name: { type: string, example: John }
         last_name: { type: string, example: Doe }
         email: { type: string, format: email, example: john@example.com }
+        created_at: { type: string, format: date-time, example: '2026-02-28 20:11:48' }
+        updated_at: { type: string, format: date-time, example: '2026-02-28 20:11:48' }
+        email_verified: { type: boolean, example: false, description: 'Whether the address has been proven. Recorded, not enforced — an unverified account is fully usable.' }
     UserWithAlbums:
       allOf:
         - $ref: '#/components/schemas/User'
@@ -1104,7 +1480,7 @@ components:
       properties:
         first_name: { type: string, maxLength: 255, example: John }
         last_name: { type: string, maxLength: 255, example: Doe }
-        email: { type: string, format: email, maxLength: 255, example: john@example.com }
+        email: { type: string, format: email, maxLength: 254, example: john@example.com }
         password: { type: string, minLength: 6, maxLength: 72, example: secret123 }
     UserUpdateRequest:
       type: object
@@ -1112,7 +1488,7 @@ components:
       properties:
         first_name: { type: string, maxLength: 255 }
         last_name: { type: string, maxLength: 255 }
-        email: { type: string, format: email, maxLength: 255 }
+        email: { type: string, format: email, maxLength: 254 }
         password: { type: string, minLength: 6, maxLength: 72 }
 
     # -- Albums ------------------------------------------------------
@@ -1124,6 +1500,8 @@ components:
         title: { type: string, example: Vacation 2025 }
         is_deleted: { type: boolean, example: false }
         delete_reason: { type: string, nullable: true, example: null }
+        created_at: { type: string, format: date-time, example: '2026-02-28 20:11:48' }
+        updated_at: { type: string, format: date-time, example: '2026-02-28 20:11:48' }
     AlbumView:
       type: object
       description: Richer single-album shape — includes the owner's name and the album's photos.
@@ -1174,6 +1552,7 @@ components:
           type: string
           nullable: true
           example: http://localhost:8084/uploads/albums/5/8f3ac91b.webp
+        created_at: { type: string, format: date-time, example: '2026-02-28 20:11:48' }
     PhotoUpdateRequest:
       type: object
       description: Only the title may change.

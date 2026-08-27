@@ -10,6 +10,7 @@ export { PhotoPolicy } from './photoPolicy'
 export { UserPolicy } from './userPolicy'
 export { RolePolicy } from './rolePolicy'
 export { ListQueryBuilder } from './listQuery'
+export { DateTime } from './dateTime'
 export { LocalStorageTokenStorage, InMemoryTokenStorage, createTokenStorage } from './tokenStorage'
 export { ConsoleErrorReporter, NoopErrorReporter } from './errorReporter'
 export {

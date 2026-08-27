@@ -59,4 +59,21 @@
 
     border-color: rgb(255 255 255 / 12%);
   }
+
+  // `.appBreadcrumb a:hover` turns `$primary` blue in `_base.scss`, which reads
+  // fine on the light page but is a low-contrast blue on this near-black one.
+  // The underline alone is hover cue enough, so only the colour change is
+  // undone here — light mode keeps it.
+  .appBreadcrumb a:hover {
+    color: var(--bs-secondary-color);
+  }
+
+  // `.text-bg-light` (the "system"/"Live" badges) always paints a light fill —
+  // Bootstrap's `--bs-light-rgb` does not vary with the mode — but the loop
+  // above just repainted `.text-secondary` with the variant meant for text on
+  // *this page's* dark background, which is unreadable on that light fill.
+  // Reset it to the same plain grey `.text-secondary` renders in light mode.
+  .badge.text-bg-light.text-secondary {
+    color: rgb(var(--bs-secondary-rgb)) !important;
+  }
 }

@@ -3,6 +3,13 @@ export interface User {
   readonly first_name: string
   readonly last_name: string
   readonly email: string
+  readonly created_at: string
+  readonly updated_at: string
+  /**
+   * Whether the address has been proven. Recorded, not enforced — the API gates
+   * nothing on it, so this is here for the client to prompt with.
+   */
+  readonly email_verified: boolean
 }
 
 /** `GET /users/{id}` and `GET /users/me` — both always embed the account's albums. */
@@ -36,10 +43,23 @@ export interface Album {
   readonly title: string
   readonly is_deleted: boolean
   readonly delete_reason: string | null
+  readonly created_at: string
+  readonly updated_at: string
 }
 
-/** Single-album shape — adds the owner's name and the album's photos. */
-export interface AlbumView extends Album {
+/**
+ * Single-album shape — adds the owner's name and the album's photos.
+ *
+ * Deliberately **not** `extends Album`: the list shape carries timestamps and
+ * this one does not. The API serves the two from different DTOs and only the
+ * list is sortable by date, so extending would invent two fields the response
+ * never sends — which the contract suite reads as drift, correctly.
+ */
+export interface AlbumView {
+  readonly id: number
+  readonly title: string
+  readonly is_deleted: boolean
+  readonly delete_reason: string | null
   readonly first_name: string
   readonly last_name: string
   readonly photos: readonly Photo[]
@@ -60,6 +80,8 @@ export interface Photo {
   readonly id: number
   readonly title: string
   readonly url: string | null
+  /** There is no `updated_at`: only the title may change, and no column records it. */
+  readonly created_at: string
 }
 
 export interface PhotoUpdateRequest {

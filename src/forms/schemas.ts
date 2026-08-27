@@ -4,6 +4,7 @@ import {
   descriptionRule,
   emailRule,
   hasAllowedImageExtension,
+  MAX_UPLOAD_BYTES,
   nameRule,
   optionalText,
   PASSWORD_MISMATCH,
@@ -13,6 +14,7 @@ import {
   passwordsMatch,
   roleNameRule,
   titleRule,
+  tokenRule,
 } from './rules'
 
 /* -- Auth ------------------------------------------------------------------ */
@@ -33,7 +35,41 @@ export const registerSchema = z
   .refine(passwordsMatch, PASSWORD_MISMATCH_ISSUE)
 export type RegisterValues = z.infer<typeof registerSchema>
 
+/**
+ * Asking for an address is all this form does. The API answers 204 whether or
+ * not the address is registered, so there is nothing to validate against and
+ * nothing the reply may reveal.
+ */
+export const forgotPasswordSchema = z.object({ email: emailRule })
+export type ForgotPasswordValues = z.infer<typeof forgotPasswordSchema>
+
+/** The token comes from the email; the pair is confirmed as on every other password form. */
+export const resetPasswordSchema = z
+  .object({ token: tokenRule, ...passwordPairShape })
+  .refine(passwordsMatch, PASSWORD_MISMATCH_ISSUE)
+export type ResetPasswordValues = z.infer<typeof resetPasswordSchema>
+
+export const verifyEmailSchema = z.object({ token: tokenRule })
+export type VerifyEmailValues = z.infer<typeof verifyEmailSchema>
+
 /* -- Users ----------------------------------------------------------------- */
+
+/**
+ * Changing one's own password. The current one is asked for because the API
+ * requires it: a bearer token left on a shared machine should not be enough to
+ * take the account over.
+ *
+ * `min(1)` rather than `passwordRule` on the current password — it is being
+ * checked against what is stored, not proposed, and holding it to today's rules
+ * would lock out an account whose password predates them.
+ */
+export const changePasswordSchema = z
+  .object({
+    current_password: z.string().min(1, 'Your current password is required.'),
+    ...passwordPairShape,
+  })
+  .refine(passwordsMatch, PASSWORD_MISMATCH_ISSUE)
+export type ChangePasswordValues = z.infer<typeof changePasswordSchema>
 
 export const userCreateSchema = z
   .object({
@@ -99,7 +135,8 @@ export const photoUploadSchema = z.object({
     .refine(
       (file) => hasAllowedImageExtension(file.name),
       'Allowed formats: jpg, jpeg, png, webp, gif, avif.',
-    ),
+    )
+    .refine((file) => file.size <= MAX_UPLOAD_BYTES, 'That file is larger than 10 MB.'),
 })
 export type PhotoUploadValues = z.infer<typeof photoUploadSchema>
 

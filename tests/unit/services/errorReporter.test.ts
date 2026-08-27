@@ -28,6 +28,32 @@ describe('ConsoleErrorReporter', () => {
     expect(error).toHaveBeenCalledWith('[error] unknown', 'something threw a string')
   })
 
+  it('quotes the request id, which is what makes a report searchable', () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const reporter = new ConsoleErrorReporter()
+    const failure = {
+      code: 500,
+      errorCode: 'server_error',
+      message: 'Boom',
+      fieldErrors: {},
+      requestId: 'req-abc',
+    }
+
+    reporter.reportError(failure, { source: 'boundary' })
+
+    expect(error).toHaveBeenCalledWith('[error] boundary request req-abc', failure)
+  })
+
+  it('says nothing about an id a failure does not carry', () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const reporter = new ConsoleErrorReporter()
+    const failure = { code: 0, errorCode: 'network_error', message: 'Offline', fieldErrors: {} }
+
+    reporter.reportError(failure, { source: 'unhandled' })
+
+    expect(error).toHaveBeenCalledWith('[error] unhandled', failure)
+  })
+
   it('reports a metric as a value, not as an error', () => {
     const info = vi.spyOn(console, 'info').mockImplementation(() => undefined)
     const reporter = new ConsoleErrorReporter()

@@ -13,9 +13,10 @@ export const nameRule = trimmed
   .min(1, 'This field is required.')
   .max(255, 'Maximum 255 characters.')
 
+/** 254, not 255: RFC 5321 caps a deliverable address there, and the API follows it. */
 export const emailRule = trimmed
   .min(1, 'Email is required.')
-  .max(255, 'Maximum 255 characters.')
+  .max(254, 'Maximum 254 characters.')
   .pipe(z.email('Enter a valid email address.'))
 
 /** bcrypt truncates beyond 72 bytes, which is why the API caps it there. */
@@ -25,6 +26,17 @@ export const passwordRule = z
   .max(72, 'Maximum 72 characters.')
 
 export const titleRule = trimmed.min(1, 'Title is required.').max(255, 'Maximum 255 characters.')
+
+/**
+ * A single-use token from a password-reset or email-verification message.
+ *
+ * The API mails the token on its own rather than inside a link, so it is
+ * something a person copies out of their inbox — trimmed, because a copied
+ * line usually brings whitespace with it.
+ */
+export const tokenRule = trimmed
+  .min(1, 'Paste the token from the email.')
+  .max(64, 'Maximum 64 characters.')
 
 export const roleNameRule = trimmed
   .min(1, 'Name is required.')
@@ -69,6 +81,17 @@ export const PASSWORD_MISMATCH_ISSUE = {
 
 /** Extensions the API accepts; anything else is rejected before upload. */
 export const ALLOWED_IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'avif'] as const
+
+/**
+ * The largest file the API stores, in bytes (10 MiB).
+ *
+ * Checking it here saves a pointless upload, and the two ways the API refuses
+ * one are worth knowing apart: a file over this size is a 422 on the `file`
+ * field, while a *body* over PHP's own limit never reaches the application at
+ * all and comes back as a 413. Both are handled, but neither is a good
+ * experience compared with saying so before the bytes leave.
+ */
+export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 
 export function hasAllowedImageExtension(fileName: string): boolean {
   // Indexing the split parts would leave a branch for "no last element" that a

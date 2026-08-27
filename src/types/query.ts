@@ -17,8 +17,6 @@ export interface ListQuery {
   readonly sort?: readonly SortSpec[]
   /** One entry per filterable attribute of the resource. */
   readonly filters?: Readonly<Record<string, string | number | boolean | undefined>>
-  /** Related resources to embed, e.g. `albums` on users, `photos` on albums. */
-  readonly expand?: readonly string[]
 }
 
 /**

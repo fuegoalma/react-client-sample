@@ -17,6 +17,55 @@ const FOCUSABLE = [
 ].join(', ')
 
 /**
+ * The dialog's title bar. Both shells built on `Modal` render exactly this, and
+ * had each written it out — two copies of the markup that names a dialog and
+ * gives it its way out.
+ */
+export function ModalHeader({
+  title,
+  onClose,
+  disabled = false,
+}: {
+  readonly title: string
+  readonly onClose: () => void
+  /** A dialog waiting on its own request must not offer a way to abandon it. */
+  readonly disabled?: boolean
+}) {
+  return (
+    <div className="modal-header">
+      <h2 className="modal-title h5">{title}</h2>
+      <button
+        type="button"
+        className="btn-close"
+        aria-label="Close"
+        onClick={onClose}
+        disabled={disabled}
+      />
+    </div>
+  )
+}
+
+/** The footer's way out, beside whichever control the shell puts next to it. */
+export function ModalCancelButton({
+  onClick,
+  disabled = false,
+}: {
+  readonly onClick: () => void
+  readonly disabled?: boolean
+}) {
+  return (
+    <button
+      type="button"
+      className="btn btn-outline-secondary"
+      onClick={onClick}
+      disabled={disabled}
+    >
+      Cancel
+    </button>
+  )
+}
+
+/**
  * Bootstrap's modal markup, without Bootstrap's JavaScript.
  *
  * The JS version manipulates the DOM directly, which fights React for ownership

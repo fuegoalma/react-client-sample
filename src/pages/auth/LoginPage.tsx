@@ -2,6 +2,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 
 import { AuthLayout, FormAlert, FormField, SubmitButton, fieldClass } from '@/components'
 import { loginSchema, type LoginValues } from '@/forms'
+import { paths } from '@/app/paths'
 import { useApiForm, useAuth } from '@/hooks'
 
 interface RedirectState {
@@ -13,16 +14,15 @@ export function LoginPage() {
   const navigate = useNavigate()
   const location = useLocation()
 
-  const form = useApiForm(loginSchema, { email: '', password: '' })
   const {
     register,
-    handleSubmit,
+    onSubmitHandler,
     submit,
     formState: { errors },
-  } = form
+  } = useApiForm(loginSchema, { email: '', password: '' })
 
   // Return the user to wherever RequireAuth interrupted them.
-  const redirectTo = (location.state as RedirectState | null)?.from?.pathname ?? '/albums'
+  const redirectTo = (location.state as RedirectState | null)?.from?.pathname ?? paths.myAlbums
 
   const onSubmit = (values: LoginValues): Promise<void> =>
     // No toast: arriving at the screen you were headed for is the confirmation.
@@ -38,11 +38,14 @@ export function LoginPage() {
       lead="Use the email and password of your API account."
       footer={
         <>
-          No account yet? <Link to="/register">Create one</Link>
+          <Link to={paths.forgotPassword}>Forgot your password?</Link>
+          <span className="d-block mt-2">
+            No account yet? <Link to={paths.register}>Create one</Link>
+          </span>
         </>
       }
     >
-      <form onSubmit={(event) => void handleSubmit(onSubmit)(event)} noValidate>
+      <form onSubmit={onSubmitHandler(onSubmit)} noValidate>
         <FormAlert error={errors.root} />
 
         <FormField id="email" label="Email" error={errors.email}>

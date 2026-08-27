@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, NavLink } from 'react-router-dom'
 
+import { paths } from '@/app/paths'
 import { config } from '@/config'
 import { useAuth, usePermissions, useTheme } from '@/hooks'
 import { useMeQuery } from '@/repositories'
@@ -14,11 +15,11 @@ interface NavItem {
 }
 
 const NAV_ITEMS: readonly NavItem[] = [
-  { to: '/albums', label: 'My albums' },
-  { to: '/all-albums', label: 'All albums', permission: PERMISSIONS.albumIndexAny },
-  { to: '/users', label: 'Users', permission: PERMISSIONS.userIndexAny },
-  { to: '/roles', label: 'Roles', permission: PERMISSIONS.roleIndex },
-  { to: '/permissions', label: 'Permissions', permission: PERMISSIONS.permissionIndex },
+  { to: paths.myAlbums, label: 'My albums' },
+  { to: paths.allAlbums, label: 'All albums', permission: PERMISSIONS.albumIndexAny },
+  { to: paths.users, label: 'Users', permission: PERMISSIONS.userIndexAny },
+  { to: paths.roles, label: 'Roles', permission: PERMISSIONS.roleIndex },
+  { to: paths.permissions, label: 'Permissions', permission: PERMISSIONS.permissionIndex },
 ]
 
 /**
@@ -75,7 +76,7 @@ export function Navbar() {
   return (
     <nav className="appNavbar navbar navbar-expand-lg">
       <div className="appNavbar__inner container-fluid">
-        <Link className="appNavbar__brand navbar-brand" to="/albums">
+        <Link className="appNavbar__brand navbar-brand" to={paths.myAlbums}>
           <i className="bi bi-images me-2" aria-hidden="true" />
           {config.appName}
         </Link>
@@ -129,7 +130,7 @@ export function Navbar() {
               <li>
                 <Link
                   className="dropdown-item"
-                  to="/profile"
+                  to={paths.profile}
                   onClick={() => {
                     setMenuOpen(false)
                   }}
@@ -140,7 +141,7 @@ export function Navbar() {
               <li>
                 <Link
                   className="dropdown-item"
-                  to="/health"
+                  to={paths.health}
                   onClick={() => {
                     setMenuOpen(false)
                   }}

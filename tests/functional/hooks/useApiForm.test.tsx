@@ -18,18 +18,17 @@ const schema = z.object({ title: z.string().min(1, 'Title is required.') })
 function TestForm({ error }: { readonly error: unknown }) {
   const {
     register,
-    handleSubmit,
+    onSubmitHandler,
     applyApiError,
     formState: { errors },
   } = useApiForm(schema, { title: '' })
 
   return (
     <form
-      onSubmit={(event) =>
-        void handleSubmit(() => {
-          applyApiError(error)
-        })(event)
-      }
+      onSubmit={onSubmitHandler(() => {
+        applyApiError(error)
+        return Promise.resolve()
+      })}
       noValidate
     >
       <FormAlert error={errors.root} />
@@ -42,7 +41,7 @@ function TestForm({ error }: { readonly error: unknown }) {
 }
 
 function apiError(fieldErrors: ApiError['fieldErrors'], message = 'Please correct the fields.') {
-  return { code: 422, message, fieldErrors } satisfies ApiError
+  return { code: 422, errorCode: 'validation_failed', message, fieldErrors } satisfies ApiError
 }
 
 describe('useApiForm', () => {
@@ -131,21 +130,19 @@ function SubmittingForm({
 }) {
   const {
     register,
-    handleSubmit,
+    onSubmitHandler,
     submit,
     formState: { errors },
   } = useApiForm(schema, { title: '' })
 
   return (
     <form
-      onSubmit={(event) =>
-        void handleSubmit(() =>
-          submit(request(), {
-            ...(success !== undefined && { success }),
-            ...(onDone !== undefined && { onDone }),
-          }),
-        )(event)
-      }
+      onSubmit={onSubmitHandler(() =>
+        submit(request(), {
+          ...(success !== undefined && { success }),
+          ...(onDone !== undefined && { onDone }),
+        }),
+      )}
       noValidate
     >
       <FormAlert error={errors.root} />

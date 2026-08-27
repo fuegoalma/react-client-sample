@@ -11,6 +11,10 @@ test-results
 # Local CodeGraph index — rebuilt per machine, never deployed.
 .codegraph
 
+# What `make spec-drift` fetches the live document into. Removed either way;
+# ignored so an interrupted run cannot leave it looking like a change.
+.openapi.live.yaml
+
 # Local AI-agent skill installs (caveman skill manager) — cached per agent runtime, not part of the app.
 .claude/skills
 .agents

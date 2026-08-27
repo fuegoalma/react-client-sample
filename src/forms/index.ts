@@ -4,6 +4,7 @@ export {
   ALLOWED_IMAGE_EXTENSIONS,
   EMPTY_USER_UPDATE_VALUES,
   hasAllowedImageExtension,
+  MAX_UPLOAD_BYTES,
   PASSWORD_MISMATCH,
   toUserPayload,
   withoutEmpty,

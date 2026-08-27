@@ -53,7 +53,7 @@ const NOT_OFFERED: Readonly<Record<string, readonly string[]>> = {
 }
 
 function filterNames(path: string): string[] {
-  const skipped = new Set(['sort', 'page', 'per_page', 'expand', ...(NOT_OFFERED[path] ?? [])])
+  const skipped = new Set(['sort', 'page', 'per_page', ...(NOT_OFFERED[path] ?? [])])
 
   return queryParameters(path)
     .map((parameter) => parameter.name ?? '')
@@ -66,13 +66,19 @@ function filterNames(path: string): string[] {
  * own description — "Allowed: `id`, `title`, …" — which is the only place the
  * document carries it. Reading it from there is what makes a change to that
  * list visible on this side.
+ *
+ * Only the `Allowed:` sentence is read, not every backtick in the description.
+ * The rest of the prose names attributes too — "Defaults to `id` ascending" —
+ * and taking those as part of the whitelist reported an attribute twice.
  */
 function sortableAttributes(path: string): string[] {
   const description = queryParameters(path).find(
     (parameter) => parameter.name === 'sort',
   )?.description
 
-  return [...(description ?? '').matchAll(/`(-?[a-z_]+)`/g)]
+  const allowed = /Allowed:([^.]*)/.exec(description ?? '')?.[1] ?? ''
+
+  return [...allowed.matchAll(/`(-?[a-z_]+)`/g)]
     .map((match) => match[1] ?? '')
     .filter((name) => !name.startsWith('-'))
     .sort()

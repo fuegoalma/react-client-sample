@@ -22,6 +22,36 @@ export interface RefreshTokenRequest {
   readonly refresh_token: string
 }
 
+/**
+ * `POST /auth/forgot-password` — answered 204 whether or not the address is
+ * registered, so nothing about the reply may be shown as confirmation that an
+ * account exists.
+ */
+export interface ForgotPasswordRequest {
+  readonly email: string
+}
+
+/** `POST /auth/reset-password` — the token arrives by mail, on its own. */
+export interface ResetPasswordRequest {
+  readonly token: string
+  readonly password: string
+}
+
+/** `POST /auth/verify-email` — public: the token is the proof, not a session. */
+export interface VerifyEmailRequest {
+  readonly token: string
+}
+
+/**
+ * `PUT /users/me/password`. The current password is required even though the
+ * caller is authenticated: a bearer token left on a shared machine should not be
+ * enough to take the account over for good.
+ */
+export interface ChangePasswordRequest {
+  readonly current_password: string
+  readonly password: string
+}
+
 export type HealthStatus = 'ok' | 'error'
 
 export interface HealthCheck {

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 
 import { AlbumDeleteButton } from '@/components/albums/AlbumDeleteButton'
 import { AlbumDeleteDialog } from '@/components/albums/AlbumDeleteDialog'
@@ -8,8 +8,9 @@ import { PhotoCard } from '@/components/photos/PhotoCard'
 import { PhotoDeleteDialog } from '@/components/photos/PhotoDeleteDialog'
 import { PhotoUploadDialog } from '@/components/photos/PhotoUploadDialog'
 import { FilterBar, PageHeader, PaginationBar, QueryBoundary, type Crumb } from '@/components'
+import { paths } from '@/app/paths'
 import { photoListSpec } from '@/forms'
-import { useListQuery, usePermissions } from '@/hooks'
+import { useListQuery, useNumericParam, usePermissions } from '@/hooks'
 import { useAlbumPhotosQuery, useAlbumQuery } from '@/repositories'
 import type { Photo } from '@/types'
 
@@ -22,16 +23,15 @@ import type { Photo } from '@/types'
  * all at once.
  */
 export function AlbumDetailPage() {
-  const { albumId } = useParams()
-  const id = Number(albumId)
+  const { id, skip } = useNumericParam('albumId')
   const navigate = useNavigate()
 
-  const { data: album, error, isLoading } = useAlbumQuery(id, { skip: Number.isNaN(id) })
+  const { data: album, error, isLoading } = useAlbumQuery(id, { skip })
 
   const photoList = useListQuery(photoListSpec)
   const { data: photos, isLoading: loadingPhotos } = useAlbumPhotosQuery(
     { albumId: id, query: photoList.query },
-    { skip: Number.isNaN(id) },
+    { skip },
   )
 
   const { albums: policy, photos: photoPolicy, ownsAlbum } = usePermissions()
@@ -199,7 +199,7 @@ export function AlbumDetailPage() {
               // list the caller came from. "My albums" is the fallback rather
               // than a 403 risk: it needs no permission at all, so it is
               // reachable even by a caller who may not list anything else.
-              void navigate(albumsCrumb.to ?? '/albums', { replace: true })
+              void navigate(albumsCrumb.to ?? paths.myAlbums, { replace: true })
             }}
           />
 
